@@ -122,6 +122,50 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
   unset_halide_buf(output_buf);
 }
 
+void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
+  i32 frame_width = frame_info_.width();
+  i32 frame_height = frame_info_.height();
+  size_t net_input_size = net_input_width_ * net_input_height_ * 3;
+
+  auto& descriptor = args_.net_descriptor();
+  cv::Scalar mean_vec(descriptor.mean_colors(0),
+                      descriptor.mean_colors(1),
+                      descriptor.mean_colors(2));
+  if (device_.type == DeviceType::GPU) {
+    cv::cuda::GpuMat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
+    cv::cuda::GpuMat resized_input;
+
+    cv::cuda::resize(input_mat, resized_input,
+               cv::Size(net_input_width_, net_input_height_), 0, 0,
+               cv::INTER_LINEAR);
+    cv::cuda::cvtColor(resized_input, resized_input, CV_RGB2BGR);
+
+    cv::cuda::subtract(resized_input, mean_vec, resized_input);
+    // if (descriptor.normalize()) {
+    //   cv::cuda::multiply(
+    //       resized_input, cv::Scalar(1.0 / 255.0), resized_input);
+    // }
+
+    cudaMemcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8),
+               cudaMemcpyDeviceToDevice);
+  } else {
+    cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
+    cv::Mat resized_input;
+
+    cv::resize(input_mat, resized_input,
+               cv::Size(net_input_width_, net_input_height_), 0, 0,
+               cv::INTER_LINEAR);
+    cv::cvtColor(resized_input, resized_input, CV_RGB2BGR);
+
+    resized_input = resized_input - mean_vec;
+    // if (descriptor.normalize()) {
+    //   resized_input = resized_input / 255.0;
+    // }
+
+    std::memcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8));
+  }
+}
+
 void CaffeInputKernel::transform_caffe(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
@@ -171,8 +215,10 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
   FrameInfo info(3, net_input_height_, net_input_width_, FrameType::F32);
   std::vector<Frame*> frames = new_frames(device_, info, input_count);
   for (i32 frame = 0; frame < input_count; frame++) {
-    const u8* input_buffer = frame_col[frame].as_const_frame()->data;
-    transform_halide(input_buffer, frames[frame]->data);
+    u8* input_buffer = frame_col[frame].as_const_frame()->data;
+    // transform_halide(input_buffer, frames[frame]->data);
+    // transform_caffe(input_buffer, frames[frame]->data);
+    transform_opencv(input_buffer, frames[frame]->data);
 
     insert_frame(output_columns[0], frames[frame]);
   }
