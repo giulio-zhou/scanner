@@ -13,14 +13,16 @@
 namespace scanner {
 
 CaffeInputKernel::CaffeInputKernel(const KernelConfig& config)
-  : BatchedKernel(config), device_(config.devices[0]),
-    num_cuda_streams_(32), streams_(num_cuda_streams_) {
+  : BatchedKernel(config), device_(config.devices[0]), num_cuda_streams_(32) {
   args_.ParseFromArray(config.args.data(), config.args.size());
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({
       CUD_CHECK(cuDevicePrimaryCtxRetain(&context_, device_.id));
       Halide::Runtime::Internal::Cuda::context = context_;
       halide_set_gpu_device(device_.id);
+      cv::cuda::setBufferPoolUsage(true);
+      cv::cuda::setBufferPoolConfig(device_.id, 50 * 1024 * 1024, 5);
+      streams_.resize(num_cuda_streams_);
     });
   }
 }
@@ -30,6 +32,9 @@ CaffeInputKernel::~CaffeInputKernel() {
     cudaSetDevice(device_.id);
     Halide::Runtime::Internal::Cuda::context = 0;
     CUD_CHECK(cuDevicePrimaryCtxRelease(device_.id));
+    streams_.clear();
+    cv::cuda::setBufferPoolConfig(device_.id, 0, 0);
+    cv::cuda::setBufferPoolUsage(false);
   });
 }
 
@@ -225,7 +230,7 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
   for (i32 frame = 0; frame < input_count; frame++) {
     i32 sid = frame % num_cuda_streams_;
     cv::cuda::Stream& s = streams_[sid];
-    s.waitForCompletion();
+    // s.waitForCompletion();
 
     u8* input_buffer = frame_col[frame].as_const_frame()->data;
     transform_opencv(input_buffer, frames[frame]->data, s);
