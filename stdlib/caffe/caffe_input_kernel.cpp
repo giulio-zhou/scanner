@@ -6,13 +6,15 @@
 
 #ifdef HAVE_CUDA
 #include "HalideRuntimeCuda.h"
+#include "scanner/util/cuda.h"
 #include "scanner/util/halide_context.h"
 #endif
 
 namespace scanner {
 
 CaffeInputKernel::CaffeInputKernel(const KernelConfig& config)
-  : BatchedKernel(config), device_(config.devices[0]) {
+  : BatchedKernel(config), device_(config.devices[0]),
+    num_cuda_streams_(32), streams_(num_cuda_streams_) {
   args_.ParseFromArray(config.args.data(), config.args.size());
   if (device_.type == DeviceType::GPU) {
     CUDA_PROTECT({
@@ -122,7 +124,9 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
   unset_halide_buf(output_buf);
 }
 
-void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
+void CaffeInputKernel::transform_opencv(
+    u8* input_buffer, u8* output_buffer,
+    cv::cuda::Stream& stream=cv::cuda::Stream::Null()) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
   size_t net_input_size = net_input_width_ * net_input_height_ * 3;
@@ -132,22 +136,24 @@ void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
                       descriptor.mean_colors(1),
                       descriptor.mean_colors(2));
   if (device_.type == DeviceType::GPU) {
-    cv::cuda::GpuMat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
-    cv::cuda::GpuMat resized_input;
+    cv::cuda::GpuMat input_mat(
+        frame_height, frame_width, CV_8UC3, input_buffer);
+    cv::cuda::GpuMat resized_input(
+        net_input_height_, net_input_width_, CV_8UC3, output_buffer);
 
     cv::cuda::resize(input_mat, resized_input,
                cv::Size(net_input_width_, net_input_height_), 0, 0,
-               cv::INTER_LINEAR);
-    cv::cuda::cvtColor(resized_input, resized_input, CV_RGB2BGR);
+               cv::INTER_LINEAR, stream);
+    cv::cuda::cvtColor(resized_input, resized_input, CV_RGB2BGR, 0, stream);
 
-    cv::cuda::subtract(resized_input, mean_vec, resized_input);
+    cv::cuda::subtract(
+        resized_input, mean_vec, resized_input, cv::noArray(), -1, stream);
     // if (descriptor.normalize()) {
     //   cv::cuda::multiply(
     //       resized_input, cv::Scalar(1.0 / 255.0), resized_input);
     // }
-
-    cudaMemcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8),
-               cudaMemcpyDeviceToDevice);
+    // cudaMemcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8),
+    //            cudaMemcpyDeviceToDevice);
   } else {
     cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
     cv::Mat resized_input;
@@ -214,6 +220,25 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
 
   FrameInfo info(3, net_input_height_, net_input_width_, FrameType::F32);
   std::vector<Frame*> frames = new_frames(device_, info, input_count);
+
+#ifdef HAVE_CUDA
+  for (i32 frame = 0; frame < input_count; frame++) {
+    i32 sid = frame % num_cuda_streams_;
+    cv::cuda::Stream& s = streams_[sid];
+    s.waitForCompletion();
+
+    u8* input_buffer = frame_col[frame].as_const_frame()->data;
+    transform_opencv(input_buffer, frames[frame]->data, s);
+  }
+
+  for (cv::cuda::Stream& s : streams_) {
+    s.waitForCompletion();
+  }
+
+  for (i32 frame = 0; frame < input_count; frame++) {
+    insert_frame(output_columns[0], frames[frame]);
+  }
+#else
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = frame_col[frame].as_const_frame()->data;
     // transform_halide(input_buffer, frames[frame]->data);
@@ -222,6 +247,7 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
 
     insert_frame(output_columns[0], frames[frame]);
   }
+#endif
 
   extra_inputs(input_columns, output_columns);
 
