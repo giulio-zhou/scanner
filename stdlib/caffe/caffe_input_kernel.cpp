@@ -125,7 +125,7 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
 void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
-  size_t net_input_size = net_input_width_ * net_input_height_ * 3;
+  size_t net_frame_bytes = net_input_width_ * net_input_height_ * sizeof(u8);
 
   auto& descriptor = args_.net_descriptor();
   cv::Scalar mean_vec(descriptor.mean_colors(0),
@@ -133,7 +133,8 @@ void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
                       descriptor.mean_colors(2));
   if (device_.type == DeviceType::GPU) {
     cv::cuda::GpuMat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
-    cv::cuda::GpuMat resized_input;
+    cv::cuda::GpuMat resized_input(
+        net_input_height_, net_input_width_, CV_8UC3, output_buffer);
 
     cv::cuda::resize(input_mat, resized_input,
                cv::Size(net_input_width_, net_input_height_), 0, 0,
@@ -145,12 +146,19 @@ void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
     //   cv::cuda::multiply(
     //       resized_input, cv::Scalar(1.0 / 255.0), resized_input);
     // }
+    auto blue_channel_mat = cv::cuda::GpuMat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data);
+    auto green_channel_mat = cv::cuda::GpuMat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + net_frame_bytes);
+    auto red_channel_mat = cv::cuda::GpuMat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + 2 * net_frame_bytes);
 
-    cudaMemcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8),
-               cudaMemcpyDeviceToDevice);
+    cv::cuda::GpuMat split_mats[] = {blue_channel_mat, green_channel_mat, red_channel_mat};
+    cv::cuda::split(resized_input, split_mats);
   } else {
     cv::Mat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
-    cv::Mat resized_input;
+    cv::Mat resized_input(
+        net_input_height_, net_input_width_, CV_8UC3, output_buffer);
 
     cv::resize(input_mat, resized_input,
                cv::Size(net_input_width_, net_input_height_), 0, 0,
@@ -161,8 +169,15 @@ void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
     // if (descriptor.normalize()) {
     //   resized_input = resized_input / 255.0;
     // }
+    auto blue_channel_mat = cv::Mat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data);
+    auto green_channel_mat = cv::Mat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + net_frame_bytes);
+    auto red_channel_mat = cv::Mat(
+        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + 2 * net_frame_bytes);
 
-    std::memcpy(output_buffer, resized_input.data, net_input_size * sizeof(u8));
+    cv::Mat split_mats[] = {blue_channel_mat, green_channel_mat, red_channel_mat};
+    cv::split(resized_input, split_mats);
   }
 }
 
