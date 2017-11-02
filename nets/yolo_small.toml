@@ -1,6 +1,6 @@
 [net]
-    model = "nets/yolo/yolo_deploy.prototxt"
-    weights = "nets/yolo/yolo.caffemodel"
+    model = "nets/yolo_small/yolo_small_deploy.prototxt"
+    weights = "nets/yolo_small/yolo_small.caffemodel"
     input_layers = ["data"]
     output_layers = ["fc25"]
     input_width = 448
