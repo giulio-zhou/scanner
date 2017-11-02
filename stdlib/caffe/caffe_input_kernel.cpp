@@ -125,7 +125,7 @@ void CaffeInputKernel::transform_halide(const u8* input_buffer,
 void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
   i32 frame_width = frame_info_.width();
   i32 frame_height = frame_info_.height();
-  size_t net_frame_bytes = net_input_width_ * net_input_height_ * sizeof(u8);
+  size_t net_frame_bytes = net_input_width_ * net_input_height_ * sizeof(float);
 
   auto& descriptor = args_.net_descriptor();
   cv::Scalar mean_vec(descriptor.mean_colors(0),
@@ -134,24 +134,27 @@ void CaffeInputKernel::transform_opencv(u8* input_buffer, u8* output_buffer) {
   if (device_.type == DeviceType::GPU) {
     cv::cuda::GpuMat input_mat(frame_height, frame_width, CV_8UC3, input_buffer);
     cv::cuda::GpuMat resized_input(
-        net_input_height_, net_input_width_, CV_8UC3, output_buffer);
+        net_input_height_, net_input_width_, CV_8UC3);
+    cv::cuda::GpuMat float_input(
+        net_input_height_, net_input_width_, CV_32FC3, output_buffer);
 
     cv::cuda::resize(input_mat, resized_input,
-               cv::Size(net_input_width_, net_input_height_), 0, 0,
-               cv::INTER_LINEAR);
+                     cv::Size(net_input_width_, net_input_height_), 0, 0,
+                     cv::INTER_LINEAR);
     cv::cuda::cvtColor(resized_input, resized_input, CV_RGB2BGR);
+    resized_input.convertTo(float_input, CV_32FC3);
 
-    cv::cuda::subtract(resized_input, mean_vec, resized_input);
-    // if (descriptor.normalize()) {
-    //   cv::cuda::multiply(
-    //       resized_input, cv::Scalar(1.0 / 255.0), resized_input);
-    // }
+    // Apply mean subtraction and normalization.
+    cv::cuda::subtract(float_input, mean_vec, float_input);
+    if (descriptor.normalize()) {
+      cv::cuda::multiply(float_input, cv::Scalar(1.0 / 255.0), float_input);
+    }
     auto blue_channel_mat = cv::cuda::GpuMat(
-        net_input_height_, net_input_width_, CV_8UC1, resized_input.data);
+        net_input_height_, net_input_width_, CV_32FC3, resized_input.data);
     auto green_channel_mat = cv::cuda::GpuMat(
-        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + net_frame_bytes);
+        net_input_height_, net_input_width_, CV_32FC3, resized_input.data + net_frame_bytes);
     auto red_channel_mat = cv::cuda::GpuMat(
-        net_input_height_, net_input_width_, CV_8UC1, resized_input.data + 2 * net_frame_bytes);
+        net_input_height_, net_input_width_, CV_32FC3, resized_input.data + 2 * net_frame_bytes);
 
     cv::cuda::GpuMat split_mats[] = {blue_channel_mat, green_channel_mat, red_channel_mat};
     cv::cuda::split(resized_input, split_mats);
