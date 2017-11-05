@@ -12,7 +12,6 @@ with Database() as db:
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
                            ['boxes', 'scores', 'classes', 'num_detections'])
-    print('yo')
     db.register_python_kernel(
         'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
         can_batch, batch_size)

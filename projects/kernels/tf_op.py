@@ -59,11 +59,11 @@ class TfOpKernel(scannerpy.Kernel):
         return [[scaled_input_columns[i] for i in range(num_entries)]]
         """
         output_pp_fns = self.model_dict['output_processing_fns']
-        feed_dict = \
-            self.model_dict['session_feed_dict_fn'](self.input_tensors, cols)
+        feed_dict = self.model_dict['session_feed_dict_fn'](self.input_tensors,
+                                                            input_columns)
         outputs = self.sess.run(self.output_tensors, feed_dict)
         post_processed_outputs = \
-            map(lambda fn, x: fn(x), zip(output_pp_fns, outputs))
-        return [[x] for x in post_processed_outputs]
+            [[fn(x)] for fn, x in zip(output_pp_fns, outputs)]
+        return post_processed_outputs
 
 KERNEL = TfOpKernel
