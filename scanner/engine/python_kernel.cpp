@@ -79,9 +79,10 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
     py::object main = py::import("__main__");
     py::object kernel = main.attr("kernel");
 
-    for (i32 i = 0; i < input_count; ++i) {
-      py::list cols;
-      for (i32 j = 0; j < input_columns.size(); ++j) {
+    // for (i32 i = 0; i < input_count; ++i) {
+    py::list cols;
+    for (i32 j = 0; j < input_columns.size(); ++j) {
+      for (i32 i = 0; i < input_count; ++i) {
         // HACK(wcrichto): should pass column type in config and check here
         if (config_.input_column_types[j] == proto::ColumnType::Video) {
           const Frame* frame = input_columns[j][i].as_const_frame();
@@ -98,13 +99,15 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
                               input_columns[j][i].size));
         }
       }
+    }
 
-      py::list out_cols = py::extract<py::list>(kernel.attr("execute")(cols));
-      LOG_IF(FATAL, py::len(out_cols) != output_columns.size())
-          << "Incorrect number of output columns. Expected "
-          << output_columns.size();
+    py::list out_cols = py::extract<py::list>(kernel.attr("execute")(cols));
+    LOG_IF(FATAL, py::len(out_cols) != output_columns.size() * input_count)
+        << "Incorrect number of output columns. Expected "
+        << output_columns.size();
 
-      for (i32 j = 0; j < output_columns.size(); ++j) {
+    for (i32 j = 0; j < output_columns.size(); ++j) {
+      for (i32 i = 0; i < input_count; ++i) {
         // HACK(wcrichto): should pass column type in config and check here
         if (config_.output_columns[j] == "frame") {
           np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j]);
@@ -157,6 +160,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
         }
       }
     }
+    // }
   } catch (py::error_already_set& e) {
     LOG(FATAL) << handle_pyerror();
   }

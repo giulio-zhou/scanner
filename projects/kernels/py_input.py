@@ -9,6 +9,7 @@ class PyInputKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
+        print('PyInputKernel - len=%d\n' % len(input_columns))
         return input_columns
 
 KERNEL = PyInputKernel
