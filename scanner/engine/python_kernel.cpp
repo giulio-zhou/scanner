@@ -82,6 +82,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
     // for (i32 i = 0; i < input_count; ++i) {
     py::list cols;
     for (i32 j = 0; j < input_columns.size(); ++j) {
+      py::list col;
       for (i32 i = 0; i < input_count; ++i) {
         // HACK(wcrichto): should pass column type in config and check here
         if (config_.input_column_types[j] == proto::ColumnType::Video) {
@@ -93,24 +94,28 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
                             py::make_tuple(frame->width() * frame->channels(),
                                            frame->channels(), 1),
                             py::object());
-          cols.append(frame_np);
+          col.append(frame_np);
         } else {
-          cols.append(py::str((char const*)input_columns[j][i].buffer,
-                              input_columns[j][i].size));
+          col.append(py::str((char const*)input_columns[j][i].buffer,
+                             input_columns[j][i].size));
         }
+        cols.append(col);
       }
     }
 
     py::list out_cols = py::extract<py::list>(kernel.attr("execute")(cols));
-    LOG_IF(FATAL, py::len(out_cols) != output_columns.size() * input_count)
+    LOG_IF(FATAL, py::len(out_cols) != output_columns.size())
         << "Incorrect number of output columns. Expected "
         << output_columns.size();
 
     for (i32 j = 0; j < output_columns.size(); ++j) {
+      LOG_IF(FATAL, py::len(out_cols[j]) != input_count)
+          << "Incorrect number of output columns in sublist. Expected "
+          << input_count;
       for (i32 i = 0; i < input_count; ++i) {
         // HACK(wcrichto): should pass column type in config and check here
         if (config_.output_columns[j] == "frame") {
-          np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j]);
+          np::ndarray frame_np = py::extract<np::ndarray>(out_cols[j][i]);
           FrameType frame_type;
           {
             np::dtype dtype = frame_np.get_dtype();
@@ -152,7 +157,7 @@ void PythonKernel::execute(const BatchedColumns& input_columns,
           }
           insert_frame(output_columns[j], frame);
         } else {
-          std::string field = py::extract<std::string>(out_cols[j]);
+          std::string field = py::extract<std::string>(out_cols[j][i]);
           size_t size = field.size();
           u8* buf = new_buffer(device_, size);
           memcpy_buffer(buf, device_, (u8*)field.data(), CPU_DEVICE, size);
