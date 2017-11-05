@@ -16,8 +16,9 @@ class TfOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
-        scaled_input_columns = self.sess.run(self.output,
-                                             {self.image: input_columns[0]})
-        return input_columns
+        print(len(input_columns))
+        scaled_input_columns = \
+            map(lambda x: self.sess.run(self.output, {self.image: x}), input_columns)
+        return scaled_input_columns
 
 KERNEL = TfOpKernel

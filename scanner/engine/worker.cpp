@@ -649,8 +649,16 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
 
     // Tell kernel what its inputs are from the Op DAG
     // (for variadic inputs)
-    for (auto& input : op.inputs()) {
+    auto& input_columns = op_info->input_columns();
+    for (int i = 0; i < op.inputs().size(); ++i) {
+      auto input = op.inputs(i);
       kernel_config.input_columns.push_back(input.column());
+      if (input_columns.size() == 0) {
+        // We ccan have 0 columns in op info if variadic arguments
+        kernel_config.input_column_types.push_back(ColumnType::Other);
+      } else {
+        kernel_config.input_column_types.push_back(input_columns[i].type());
+      }
     }
     kernel_configs.push_back(kernel_config);
   }
@@ -888,7 +896,7 @@ grpc::Status WorkerImpl::NewJob(grpc::ServerContext* context,
       if (factory != nullptr) {
         device_type = factory->get_device_type();
         max_devices = factory->get_max_devices();
-      } 
+      }
       if (device_type == DeviceType::CPU) {
         for (i32 i = 0; i < max_devices; ++i) {
           i32 device_id = 0;
@@ -1412,13 +1420,17 @@ grpc::Status WorkerImpl::RegisterPythonKernel(
   DeviceType device_type = python_kernel->device_type();
   const std::string& kernel_str = python_kernel->kernel_str();
   const std::string& pickled_config = python_kernel->pickled_config();
+  const bool can_batch = python_kernel->can_batch();
+  const int preferred_batch = python_kernel->preferred_batch_size();
   // Create a kernel builder function
   auto constructor = [kernel_str, pickled_config](const KernelConfig& config) {
     return new PythonKernel(config, kernel_str, pickled_config);
   };
   // Create a new kernel factory
-  KernelFactory* factory =
-      new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+  // KernelFactory* factory =
+  //     new KernelFactory(op_name, device_type, 1, false, 1, constructor);
+  KernelFactory* factory = new KernelFactory(
+      op_name, device_type, 1, can_batch, preferred_batch, constructor);
   // Register the kernel
   KernelRegistry* registry = get_kernel_registry();
   registry->add_kernel(op_name, factory);
