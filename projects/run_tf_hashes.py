@@ -6,11 +6,13 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
 
 with Database() as db:
-    batch_size = 8
+    batch_size = 1
     can_batch = batch_size > 1
-    model_name = 'alexnet'
+    model_name = 'ssd_mobilenet_v1_coco'
 
-    db.register_op('TfOp', [('input_frame', ColumnType.Video)], ['frame'])
+    db.register_op('TfOp', [('input_frame', ColumnType.Video)],
+                           ['boxes', 'scores', 'classes', 'num_detections'])
+    print('yo')
     db.register_python_kernel(
         'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
         can_batch, batch_size)
@@ -20,7 +22,7 @@ with Database() as db:
         db.ingest_videos([('target_video', video_path)], force=True)
 
     frame = db.ops.FrameInput()
-    tf_out = db.ops.TfOp(
+    boxes, scores, classes, num_detections = db.ops.TfOp(
         input_frame = frame,
         batch_size = batch_size,
         batch = batch_size,
@@ -28,12 +30,12 @@ with Database() as db:
         device=DeviceType.CPU
     )
         
-    output_op = db.ops.Output(columns=[tf_out])
+    output_op = db.ops.Output(columns=[boxes, scores, classes, num_detections])
 
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            output_op: 'hashes'
+            output_op: 'detections'
         }
     )
     bulk_job = BulkJob(output_op, [job])
