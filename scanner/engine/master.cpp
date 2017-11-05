@@ -470,7 +470,6 @@ grpc::Status MasterImpl::RegisterPythonKernel(
     // TODO(apoms): Support batching and # of devices in python kernels
     // KernelFactory* factory =
     //     new KernelFactory(op_name, device_type, 1, false, 1, constructor);
-    std::cout << "can_batch: " << can_batch << ", batch_size: " << preferred_batch;
     KernelFactory* factory = new KernelFactory(
         op_name, device_type, 1, can_batch, preferred_batch, constructor);
     // Register the kernel
