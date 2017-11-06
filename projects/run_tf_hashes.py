@@ -12,7 +12,8 @@ with Database() as db:
     can_batch = batch_size > 1
     model_name = 'ssd_mobilenet_v1_coco'
 
-    db.register_op('TfOp', [('input_frame', ColumnType.Video)], ['frame'])
+    db.register_op('TfOp', [('input_frame', ColumnType.Video)],
+                           [('frame', ColumnType.Video)])
     db.register_python_kernel(
         'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
         can_batch, batch_size)
@@ -43,14 +44,5 @@ with Database() as db:
     bulk_job = BulkJob(output_op, [job])
 
     [output] = db.run(bulk_job, force=True, profiling=True)
-    # output = db.table('detections')
 
-    output.column('frame').save_mp4('mobilenet-ssd-jackson-boxes.mp4')
-    # print(np.fromstring(output.column('frame').load().next()[1]))
-    # height, width, channels = output.column('frame').load().next().shape
-    # num_rows = output.num_rows()
-    # writer = skvideo.io.FFmpegWriter('mobilenet-ssd-jackson-boxes.mp4', 
-    #                                  (num_rows, height, width, channels))
-    # for frame in output.column('frame').load():
-    #     writer.writeFrame(frame)
-    # writer.close()
+    output.column('frame').save_mp4('mobilenet-ssd-jackson-boxes')
