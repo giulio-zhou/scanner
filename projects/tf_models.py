@@ -1,7 +1,11 @@
+<<<<<<< HEAD
 import numpy as np
 import tensorflow as tf
 import utils.visualization_utils as vis_util
 from skimage import img_as_ubyte
+=======
+import tensorflow as tf
+>>>>>>> e79288eaebff74774071f76cba8777e8a79d1281
 
 def identity(x):
     return x
