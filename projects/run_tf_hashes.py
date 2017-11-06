@@ -1,11 +1,7 @@
 from scannerpy import Database, DeviceType, Job, BulkJob, ColumnType
-<<<<<<< HEAD
 import numpy as np
 import os
 import skvideo.io
-=======
-import os
->>>>>>> e79288eaebff74774071f76cba8777e8a79d1281
 import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -41,7 +37,7 @@ with Database() as db:
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.range(0, 300),
+            sampled_frames: db.sampler.range(0, 1800),
             output_op: 'detections'
         }
     )
