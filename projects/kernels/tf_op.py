@@ -15,44 +15,36 @@ class TfOpKernel(scannerpy.Kernel):
         self.batch_size = args.batch_size
         self.model_dict = get_model_fn(args.model_name)
 
+        mode = self.model_dict['mode']
         checkpoint_path = self.model_dict['checkpoint_path']
         input_tensors = self.model_dict['input_tensors']
         output_tensors = self.model_dict['output_tensors']
+        sess_config = tf.ConfigProto(
+            allow_soft_placement=True, log_device_placement=True)
 
-        self.i = 0
+        # TODO: Handle batching
 
         with tf.device('/gpu:0'):
-            """
-            self.sess = tf.Session()
-            saver = tf.train.import_meta_graph(checkpoint_path['meta_graph'])
-            saver.restore(self.sess, checkpoint_path['checkpoint'])
-            self.input_tensors = \
-                get_tensors_by_name(tf_graph, input_tensors)
-            self.output_tensors = \
-                get_tensors_by_name(tf_graph, output_tensors)
-            """
-            
-            # Load checkpoint
-            self.tf_graph = tf.Graph()
-            tf_graph = self.tf_graph
-            with tf_graph.as_default():
-                od_graph_def = tf.GraphDef()
-                with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
-                    serialized_graph = fid.read()
-                    od_graph_def.ParseFromString(serialized_graph)
-                    tf.import_graph_def(od_graph_def, name='')
+            if mode == 'frozen_graph':
+                tf_graph = self.tf_graph
+                with tf_graph.as_default():
+                    od_graph_def = tf.GraphDef()
+                    with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
+                        serialized_graph = fid.read()
+                        od_graph_def.ParseFromString(serialized_graph)
+                        tf.import_graph_def(od_graph_def, name='')
+                self.sess = tf.Session(graph=tf_graph, config=sess_config)
+            elif mode == 'python':
+                self.sess = tf.Session(config=sess_config)
+                self.model_dict['model_init_fn']()
+                saver = tf.train.Saver()
+                saver.restore(self.sess, checkpoint_path)
+                tf_graph = self.sess.graph
+            else:
+                raise Exception("Invalid model loading mode: %s" % mode)
 
-            # TODO: Handle batch size.
-
-            # Set up session with appropriate parameters.
-            with tf_graph.as_default():
-                self.sess = tf.Session(graph=tf_graph)
-                # self.image = tf.placeholder('uint8', [self.batch_size, 400, 600, 3], name="input_image")
-                self.input_tensors = \
-                    get_tensors_by_name(tf_graph, input_tensors)
-                print(self.input_tensors)
-                self.output_tensors = \
-                    get_tensors_by_name(tf_graph, output_tensors)
+            self.input_tensors = get_tensors_by_name(tf_graph, input_tensors)
+            self.output_tensors = get_tensors_by_name(tf_graph, output_tensors)
 
     def close(self):
         pass
@@ -77,10 +69,6 @@ class TfOpKernel(scannerpy.Kernel):
         outputs = self.sess.run(self.output_tensors, feed_dict)
         post_processed_outputs = \
             self.model_dict['output_processing_fn'](input_columns, outputs)
-        # post_processed_outputs = \
-        #     [[fn(x)] for fn, x in zip(output_pp_fns, outputs)]
-        print(self.i)
-        self.i += 1
         return post_processed_outputs
 
 KERNEL = TfOpKernel

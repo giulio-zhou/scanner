@@ -9,11 +9,42 @@ def identity(x):
 def np_to_string(x):
     return x.tostring()
 
-def get_full_checkpoint_path(checkpoint_dir):
-    # base_dir = 'tf_nets/%s/' % checkpoint_dir
-    # return {'meta_graph': base_dir + 'model.ckpt.meta',
-    #         'checkpoint': base_dir + 'model.ckpt.data-00000-of-00001'}
-    return 'tf_nets/%s/frozen_inference_graph.pb' % checkpoint_dir
+def get_checkpoint_base_dir(checkpoint_dir):
+    return 'tf_nets/%s' % checkpoint_dir
+
+def get_single_checkpoint_path(checkpoint_dir, checkpoint_name):
+    full_checkpoint_path = \
+        get_checkpoint_base_dir(checkpoint_dir) + '/' + checkpoint_name
+    return full_checkpoint_path
+
+def get_frozen_graph_path(checkpoint_dir):
+    full_checkpoint_path = \
+        get_checkpoint_base_dir(checkpoint_dir) + 'frozen_inference_graph.pb'
+    return full_checkpoint_path
+
+def mobilenet_v1_224():
+    def create_mobilenet_model():
+        from mobilenet_v1 import mobilenet_v1
+        inputs = tf.placeholder('uint8', [None, None, None, 3],
+                                name='image_tensor')
+        resized_inputs = tf.image.resize_images(inputs, [224, 224])
+        mobilenet_v1(resized_inputs, num_classes=1001, is_training=False)
+
+    def post_process_fn(inputs, outputs):
+        feature_vector = outputs[0]
+        return [[feature_vector.tostring()]]
+
+    return {
+        'mode': 'python',
+        'checkpoint_path': get_single_checkpoint_path(
+            'mobilenet', 'mobilenet_v1_1.0_224.ckpt'),
+        'input_tensors': ['image_tensor:0'],
+        'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
+        'output_processing_fn': post_process_fn,
+        'session_feed_dict_fn': \
+            lambda input_tensors, cols: {input_tensors[0]: cols[0]},
+        'model_init_fn': create_mobilenet_model
+    }
 
 def ssd_mobilenet_v1_coco():
     def post_process_fn(inputs, outputs):
@@ -33,7 +64,8 @@ def ssd_mobilenet_v1_coco():
         return [[image_np]]
 
     return {
-        'checkpoint_path': get_full_checkpoint_path('ssd_mobilenet_v1_coco'),
+        'mode': 'frozen_graph',
+        'checkpoint_dir': get_checkpoint_base_dir('ssd_mobilenet_v1_coco'),
         'input_tensors': ['image_tensor:0'],
         'output_tensors': ['detection_boxes:0', 'detection_scores:0',
                            'detection_classes:0', 'num_detections:0'],
@@ -50,7 +82,9 @@ def ssd_mobilenet_v1_coco():
 #     "session_feed_dict_fn": function that generates feed_dict given \
 #                             input_tensors and input_cols
 def get_model_fn(model_name):
-    if model_name == 'ssd_mobilenet_v1_coco':
+    if model_name == 'mobilenet_v1_224':
+        return mobilenet_v1_224()
+    elif model_name == 'ssd_mobilenet_v1_coco':
         return ssd_mobilenet_v1_coco()
     else:
         raise Exception("Could not find network with name %s" % model_name)

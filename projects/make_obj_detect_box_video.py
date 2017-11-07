@@ -10,11 +10,10 @@ video_path = sys.argv[1]
 with Database() as db:
     batch_size = 1
     can_batch = batch_size > 1
-    # model_name = 'ssd_mobilenet_v1_coco'
-    model_name = 'mobilenet_v1_224'
+    model_name = 'ssd_mobilenet_v1_coco'
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
-                           ['feature_vector'])
+                           [('frame', ColumnType.Video)])
     db.register_python_kernel(
         'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
         can_batch, batch_size)
@@ -39,9 +38,11 @@ with Database() as db:
         op_args={
             frame: db.table('target_video').column('frame'),
             sampled_frames: db.sampler.range(0, 1800),
-            output_op: 'hashes'
+            output_op: 'detections'
         }
     )
     bulk_job = BulkJob(output_op, [job])
 
     [output] = db.run(bulk_job, force=True, profiling=True)
+
+    output.column('frame').save_mp4('mobilenet-ssd-jackson-boxes')
