@@ -6,6 +6,7 @@ import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
+output_dir = sys.argv[2]
 
 with Database() as db:
     batch_size = 64
@@ -23,24 +24,53 @@ with Database() as db:
         db.ingest_videos([('target_video', video_path)], force=True)
 
     frame = db.ops.FrameInput()
-    boxed_frame = db.ops.TfOp(
-        input_frame = frame,
+    sampled_frames = frame.sample()
+    hashes = db.ops.TfOp(
+        input_frame = sampled_frames,
         batch_size = batch_size,
         batch = batch_size,
         model_name = model_name,
         device=DeviceType.CPU
     )
+    resized_imgs = db.ops.Resize(
+        frame = sampled_frames,
+        width = 120,
+        height = 80,
+        device=DeviceType.CPU
+    )
         
-    output_op = db.ops.Output(columns=[boxed_frame])
+    output_op = db.ops.Output(columns=[hashes, resized_imgs])
 
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
+            sampled_frames: db.sampler.strided(10),
             output_op: 'hashes'
         }
     )
     bulk_job = BulkJob(output_op, [job])
 
-    [output] = db.run(bulk_job, force=True, profiling=True)
+    # [output] = db.run(bulk_job, force=True, profiling=True)
+    # output.profiler().write_trace('hist.trace')
+    output = db.table('hashes')
 
-    output.profiler().write_trace('hist.trace')
+    # Process outputs
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    # Process outputs into numpy array.
+    feature_vecs = output.column('feature_vector').load()
+    feature_vec_npy = np.array([np.fromstring(v[1]) for v in feature_vecs])
+    print(feature_vec_npy, feature_vec_npy.shape)
+    downsampled_imgs = output.column('frame').load()
+    downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])
+    # Create labels numpy array based on time.
+    interval = 100
+    labels = np.zeros(len(feature_vec_npy))
+    for i in range(0, len(labels), interval):
+        labels[i: i + interval] = (i // interval)
+    labels[i + interval:] = (i // interval) + 1
+    print(labels)
+    # Write numpy arrays to output directory.
+    np.save('%s/embedded_data.npy' % output_dir, feature_vec_npy)
+    np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)
+    np.save('%s/labels.npy' % output_dir, labels)

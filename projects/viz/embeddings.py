@@ -20,7 +20,7 @@ def create_sprite_image(images):
     n_cols = SPRITE_MAX_WIDTH // w
     n_rows = int(np.ceil(n / n_cols))
     assert n_rows * h <= SPRITE_MAX_HEIGHT
-    sprite_image = np.zeros((n_cols * w, n_cols * w, c))
+    sprite_image = np.zeros((n_cols * w, n_cols * w, c), dtype=np.uint8)
     for row in range(n_rows):
         for col in range(n_cols):
             if (row * n_cols + col) >= n:
