@@ -8,9 +8,8 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
 
 with Database() as db:
-    batch_size = 1
+    batch_size = 64
     can_batch = batch_size > 1
-    # model_name = 'ssd_mobilenet_v1_coco'
     model_name = 'mobilenet_v1_224'
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
@@ -24,9 +23,8 @@ with Database() as db:
         db.ingest_videos([('target_video', video_path)], force=True)
 
     frame = db.ops.FrameInput()
-    sampled_frames = frame.sample()
     boxed_frame = db.ops.TfOp(
-        input_frame = sampled_frames,
+        input_frame = frame,
         batch_size = batch_size,
         batch = batch_size,
         model_name = model_name,
@@ -38,10 +36,11 @@ with Database() as db:
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.range(0, 1800),
             output_op: 'hashes'
         }
     )
     bulk_job = BulkJob(output_op, [job])
 
     [output] = db.run(bulk_job, force=True, profiling=True)
+
+    output.profiler().write_trace('hist.trace')

@@ -13,7 +13,8 @@ class TfOpKernel(scannerpy.Kernel):
         args = protobufs.TfOpArgs()
         args.ParseFromString(config)
         self.batch_size = args.batch_size
-        self.model_dict = get_model_fn(args.model_name)
+        self.model_dict = get_model_fn(args.model_name,
+                                       batch_size=self.batch_size)
 
         mode = self.model_dict['mode']
         checkpoint_path = self.model_dict['checkpoint_path']
@@ -22,7 +23,8 @@ class TfOpKernel(scannerpy.Kernel):
         sess_config = tf.ConfigProto(
             allow_soft_placement=True, log_device_placement=True)
 
-        # TODO: Handle batching
+        # NOTE: Batching is only allowed in python mode because frozen graphs
+        #       cannot be modified.
 
         with tf.device('/gpu:0'):
             if mode == 'frozen_graph':
@@ -68,7 +70,7 @@ class TfOpKernel(scannerpy.Kernel):
                                                             input_columns)
         outputs = self.sess.run(self.output_tensors, feed_dict)
         post_processed_outputs = \
-            self.model_dict['output_processing_fn'](input_columns, outputs)
+            self.model_dict['post_processing_fn'](input_columns, outputs)
         return post_processed_outputs
 
 KERNEL = TfOpKernel

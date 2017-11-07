@@ -22,17 +22,25 @@ def get_frozen_graph_path(checkpoint_dir):
         get_checkpoint_base_dir(checkpoint_dir) + 'frozen_inference_graph.pb'
     return full_checkpoint_path
 
-def mobilenet_v1_224():
+def mobilenet_v1_224(batch_size=1):
     def create_mobilenet_model():
         from mobilenet_v1 import mobilenet_v1
-        inputs = tf.placeholder('uint8', [None, None, None, 3],
+        inputs = tf.placeholder('uint8', [batch_size, None, None, 3],
                                 name='image_tensor')
         resized_inputs = tf.image.resize_images(inputs, [224, 224])
         mobilenet_v1(resized_inputs, num_classes=1001, is_training=False)
 
-    def post_process_fn(inputs, outputs):
-        feature_vector = outputs[0]
-        return [[feature_vector.tostring()]]
+    def pre_process_fn(input_columns):
+        cols = input_columns[0]
+        if len(cols) < batch_size:
+            padding = [cols[0]] * (batch_size - len(cols))
+            inputs = np.array(cols + padding)
+        else:
+            inputs = np.array(cols)
+        return inputs
+
+    def post_process_fn(input_columns, outputs):
+        return [[outputs[0][i].tostring() for i in range(len(input_columns))]]
 
     return {
         'mode': 'python',
@@ -40,13 +48,13 @@ def mobilenet_v1_224():
             'mobilenet', 'mobilenet_v1_1.0_224.ckpt'),
         'input_tensors': ['image_tensor:0'],
         'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
-        'output_processing_fn': post_process_fn,
-        'session_feed_dict_fn': \
-            lambda input_tensors, cols: {input_tensors[0]: cols[0]},
+        'post_processing_fn': post_process_fn,
+        'session_feed_dict_fn': lambda input_tensors, cols: \
+            {input_tensors[0]: pre_process_fn(cols)},
         'model_init_fn': create_mobilenet_model
     }
 
-def ssd_mobilenet_v1_coco():
+def ssd_mobilenet_v1_coco(batch_size=1):
     def post_process_fn(inputs, outputs):
         image_np = inputs[0][0]
         boxes, scores, classes, num_detections = outputs
@@ -81,10 +89,10 @@ def ssd_mobilenet_v1_coco():
 #     "output_processing_fns": list of output processing functions
 #     "session_feed_dict_fn": function that generates feed_dict given \
 #                             input_tensors and input_cols
-def get_model_fn(model_name):
+def get_model_fn(model_name, batch_size=1):
     if model_name == 'mobilenet_v1_224':
-        return mobilenet_v1_224()
+        return mobilenet_v1_224(batch_size)
     elif model_name == 'ssd_mobilenet_v1_coco':
-        return ssd_mobilenet_v1_coco()
+        return ssd_mobilenet_v1_coco(batch_size)
     else:
         raise Exception("Could not find network with name %s" % model_name)
