@@ -1,7 +1,6 @@
 from scannerpy import Database, DeviceType, Job, BulkJob, ColumnType
 import numpy as np
 import os
-import skvideo.io
 import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -50,16 +49,15 @@ with Database() as db:
     )
     bulk_job = BulkJob(output_op, [job])
 
-    # [output] = db.run(bulk_job, force=True, profiling=True)
-    # output.profiler().write_trace('hist.trace')
-    output = db.table('hashes')
+    [output] = db.run(bulk_job, force=True, profiling=True)
+    output.profiler().write_trace('hist.trace')
 
     # Process outputs
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     # Process outputs into numpy array.
     feature_vecs = output.column('feature_vector').load()
-    feature_vec_npy = np.array([np.fromstring(v[1]) for v in feature_vecs])
+    feature_vec_npy = np.array([np.loads(v[1]) for v in feature_vecs])
     print(feature_vec_npy, feature_vec_npy.shape)
     downsampled_imgs = output.column('frame').load()
     downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])

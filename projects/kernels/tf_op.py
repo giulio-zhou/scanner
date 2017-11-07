@@ -28,7 +28,7 @@ class TfOpKernel(scannerpy.Kernel):
 
         with tf.device('/gpu:0'):
             if mode == 'frozen_graph':
-                tf_graph = self.tf_graph
+                tf_graph = tf.Graph()
                 with tf_graph.as_default():
                     od_graph_def = tf.GraphDef()
                     with tf.gfile.GFile(checkpoint_path, 'rb') as fid:

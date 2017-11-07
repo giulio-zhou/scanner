@@ -1,16 +1,15 @@
 from scannerpy import Database, DeviceType, Job, BulkJob, ColumnType
 import numpy as np
 import os
-import skvideo.io
 import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
+model_name = sys.argv[2]
 
 with Database() as db:
     batch_size = 1
     can_batch = batch_size > 1
-    model_name = 'ssd_mobilenet_v1_coco'
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
                            [('frame', ColumnType.Video)])
@@ -45,4 +44,6 @@ with Database() as db:
 
     [output] = db.run(bulk_job, force=True, profiling=True)
 
-    output.column('frame').save_mp4('mobilenet-ssd-jackson-boxes')
+    video_name = os.path.splitext(video_path)[0]
+    output_video_name = model_name + '-' + video_name
+    output.column('frame').save_mp4(video_name)
