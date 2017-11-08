@@ -234,9 +234,9 @@ void CaffeInputKernel::execute(const BatchedColumns& input_columns,
   std::vector<Frame*> frames = new_frames(device_, info, input_count);
   for (i32 frame = 0; frame < input_count; frame++) {
     u8* input_buffer = frame_col[frame].as_const_frame()->data;
-    // transform_halide(input_buffer, frames[frame]->data);
+    transform_halide(input_buffer, frames[frame]->data);
     // transform_caffe(input_buffer, frames[frame]->data);
-    transform_opencv(input_buffer, frames[frame]->data);
+    // transform_opencv(input_buffer, frames[frame]->data);
 
     insert_frame(output_columns[0], frames[frame]);
   }
