@@ -5,6 +5,7 @@
     output_layers = ["pool6"]
     input_width = 224
     input_height = 224
+    normalize = true
 
     [net.input]
         dimensions = [
