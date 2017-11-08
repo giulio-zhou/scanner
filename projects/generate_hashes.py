@@ -1,6 +1,7 @@
 from scannerpy import Database, DeviceType, Job, BulkJob
 from scannerpy.sampler import Sampler
 from scannerpy.stdlib import NetDescriptor
+import numpy as np
 import os
 import sys
 os.environ["GLOG_minloglevel"] = "1"
@@ -30,18 +31,12 @@ with Database() as db:
         batch_size = batch_size,
         batch = batch_size,
         device=DeviceType.GPU)
-    resized_imgs = db.ops.Resize(
-        frame = sampled_frames,
-        width = 120,
-        height = 80,
-        device=DeviceType.CPU
-    )
 
     output_op = db.ops.Output(columns=[hashes])
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.strided(10),
+            sampled_frames: db.sampler.strided(60),
             output_op: 'hashes'
         }
     )
@@ -54,11 +49,9 @@ with Database() as db:
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     # Process outputs into numpy array.
-    feature_vecs = output.column('hashes').load()
-    feature_vec_npy = np.array([np.loads(v[1]) for v in feature_vecs])
+    feature_vecs = output.column('caffe_output').load()
+    feature_vec_npy = np.array([v[1].squeeze() for v in feature_vecs])
     print(feature_vec_npy, feature_vec_npy.shape)
-    downsampled_imgs = output.column('frame').load()
-    downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])
     # Create labels numpy array based on time.
     interval = 100
     labels = np.zeros(len(feature_vec_npy))
@@ -68,5 +61,4 @@ with Database() as db:
     print(labels)
     # Write numpy arrays to output directory.
     np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
-    np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)
     np.save('%s/labels.npy' % output_dir, labels)

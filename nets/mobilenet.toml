@@ -22,6 +22,6 @@
 
 [mean-image]
     [mean-image.colors]
-        blue = 0.0
-        green = 0.0
-        red = 0.0
+        blue = 103.94
+        green = 116.78
+        red = 123.68
