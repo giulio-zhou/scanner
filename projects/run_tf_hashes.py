@@ -5,12 +5,12 @@ import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
-output_dir = sys.argv[2]
+model_name = sys.argv[2]
+output_dir = sys.argv[3]
 
 with Database() as db:
-    batch_size = 64
+    batch_size = 1
     can_batch = batch_size > 1
-    model_name = 'mobilenet_v1_224'
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
                            ['feature_vector'])
@@ -69,6 +69,6 @@ with Database() as db:
     labels[i + interval:] = (i // interval) + 1
     print(labels)
     # Write numpy arrays to output directory.
-    np.save('%s/embedded_data.npy' % output_dir, feature_vec_npy)
+    np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
     np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)
     np.save('%s/labels.npy' % output_dir, labels)

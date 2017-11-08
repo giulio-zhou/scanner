@@ -47,7 +47,7 @@ config = projector.ProjectorConfig()
 embedding = config.embeddings.add()
 embedding.tensor_name = embedding_var.name
 
-if len(sys.argv) >= 4 and sys.argv != 'None':
+if len(sys.argv) >= 4 and sys.argv[3] != 'None':
     # write labels to metadata file
     labels = np.load(sys.argv[3])
     embedding.metadata_path = 'metadata.tsv'
