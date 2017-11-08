@@ -69,6 +69,23 @@ def draw_tf_bounding_boxes(image_np, boxes, scores, classes, num_detections):
         line_thickness=8)
     return image_np
 
+def ssd_mobilenet_v1_coco_feature_extractor(batch_size=1):
+    def post_process_fn(input_columns, outputs):
+        num_outputs = len(input_columns)
+        serialize_fn = lambda x: np.ndarray.dumps(x.squeeze().flatten())
+        return [[serialize_fn(outputs[0][i]) for i in range(num_outputs)]]
+
+    return {
+        'mode': 'frozen_graph',
+        'checkpoint_path': get_frozen_graph_path('ssd_mobilenet_v1_coco'),
+        'input_tensors': ['image_tensor:0'],
+        # 'output_tensors': ['FeatureExtractor/MobilenetV1/MobilenetV1/Conv2d_13_depthwise/Relu6:0'],
+        'output_tensors': ['FeatureExtractor/MobilenetV1/Conv2d_13_pointwise_2_Conv2d_2_3x3_s2_512/Relu6:0'],
+        'post_processing_fn': post_process_fn,
+        'session_feed_dict_fn': \
+            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+    }
+
 def ssd_mobilenet_v1_coco(batch_size=1):
     def post_process_fn(inputs, outputs):
         image_np = inputs[0][0]
@@ -119,6 +136,8 @@ def faster_rcnn_resnet101_coco(batch_size=1):
 def get_model_fn(model_name, batch_size=1):
     if model_name == 'mobilenet_v1_224':
         return mobilenet_v1_224(batch_size)
+    elif model_name == 'ssd_mobilenet_v1_coco_feature_extractor':
+        return ssd_mobilenet_v1_coco_feature_extractor(batch_size)
     elif model_name == 'ssd_mobilenet_v1_coco':
         return ssd_mobilenet_v1_coco(batch_size)
     elif model_name == 'faster_rcnn_resnet101_coco':
