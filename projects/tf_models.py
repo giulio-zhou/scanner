@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import tensorflow as tf
 from skimage import img_as_ubyte
 
@@ -57,8 +58,11 @@ def mobilenet_v1_224(batch_size=1):
 
 def draw_tf_bounding_boxes(image_np, boxes, scores, classes, num_detections):
     import utils.visualization_utils as vis_util
-    category_index = \
-        {i: {'name': 'stuff', 'id': i, 'display_name': 'stuff'} for i in range(90)}
+    from constants import coco_class_ids_to_names
+    category_index = {
+        i: {'name': name, 'id': i, 'display_name': name} \
+          for i, name in coco_class_ids_to_names.items()
+    }
     vis_util.visualize_boxes_and_labels_on_image_array(
         image_np,
         np.squeeze(boxes),
@@ -81,6 +85,40 @@ def ssd_mobilenet_v1_coco_feature_extractor(batch_size=1):
         'input_tensors': ['image_tensor:0'],
         # 'output_tensors': ['FeatureExtractor/MobilenetV1/MobilenetV1/Conv2d_13_depthwise/Relu6:0'],
         'output_tensors': ['FeatureExtractor/MobilenetV1/Conv2d_13_pointwise_2_Conv2d_2_3x3_s2_512/Relu6:0'],
+        'post_processing_fn': post_process_fn,
+        'session_feed_dict_fn': \
+            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+    }
+
+def ssd_mobilenet_v1_coco_detection_features(batch_size=1):
+    def post_process_fn(input_columns, outputs):
+        from constants import coco_class_ids_to_names
+        boxes, scores, classes, num_detections = outputs
+        scores, classes = np.squeeze(scores), np.squeeze(classes)
+        # has person
+        labels = np.zeros(4)
+        for class_id, score in zip(classes, scores):
+            class_name = coco_class_ids_to_names[class_id]
+            if class_name == 'person':
+                labels[0] = score >= 0.5
+                labels[1] = score
+                break
+        # has car/truck/bus
+        vehicle_classes = ["car", "truck", "bus"]
+        for class_id, score in zip(classes, scores):
+            class_name = coco_class_ids_to_names[class_id]
+            if class_name in vehicle_classes:
+                labels[2] = score >= 0.5
+                labels[3] = score
+                break
+        return [[np.ndarray.dumps(labels)]]
+
+    return {
+        'mode': 'frozen_graph',
+        'checkpoint_path': get_frozen_graph_path('ssd_mobilenet_v1_coco'),
+        'input_tensors': ['image_tensor:0'],
+        'output_tensors': ['detection_boxes:0', 'detection_scores:0',
+                           'detection_classes:0', 'num_detections:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': \
             lambda input_tensors, cols: {input_tensors[0]: cols[0]}
@@ -136,10 +174,12 @@ def faster_rcnn_resnet101_coco(batch_size=1):
 def get_model_fn(model_name, batch_size=1):
     if model_name == 'mobilenet_v1_224':
         return mobilenet_v1_224(batch_size)
-    elif model_name == 'ssd_mobilenet_v1_coco_feature_extractor':
-        return ssd_mobilenet_v1_coco_feature_extractor(batch_size)
     elif model_name == 'ssd_mobilenet_v1_coco':
         return ssd_mobilenet_v1_coco(batch_size)
+    elif model_name == 'ssd_mobilenet_v1_coco_detection_features':
+        return ssd_mobilenet_v1_coco_detection_features(batch_size)
+    elif model_name == 'ssd_mobilenet_v1_coco_feature_extractor':
+        return ssd_mobilenet_v1_coco_feature_extractor(batch_size)
     elif model_name == 'faster_rcnn_resnet101_coco':
         return faster_rcnn_resnet101_coco(batch_size)
     else:

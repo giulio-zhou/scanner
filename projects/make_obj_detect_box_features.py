@@ -1,6 +1,7 @@
 from scannerpy import Database, DeviceType, Job, BulkJob, ColumnType
 import numpy as np
 import os
+import pickle
 import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +14,7 @@ with Database() as db:
     can_batch = batch_size > 1
 
     db.register_op('TfOp', [('input_frame', ColumnType.Video)],
-                           [('frame', ColumnType.Video)])
+                           ['detected_classes_and_scores'])
     db.register_python_kernel(
         'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
         can_batch, batch_size)
@@ -24,7 +25,7 @@ with Database() as db:
 
     frame = db.ops.FrameInput()
     sampled_frames = frame.sample()
-    boxed_frame = db.ops.TfOp(
+    class_and_scores = db.ops.TfOp(
         input_frame = sampled_frames,
         batch_size = batch_size,
         batch = batch_size,
@@ -32,7 +33,7 @@ with Database() as db:
         device=DeviceType.CPU
     )
         
-    output_op = db.ops.Output(columns=[boxed_frame])
+    output_op = db.ops.Output(columns=[class_and_scores])
 
     job = Job(
         op_args={
@@ -44,7 +45,13 @@ with Database() as db:
     bulk_job = BulkJob(output_op, [job])
 
     [output] = db.run(bulk_job, force=True, profiling=True)
+    output.profiler().write_trace('hist.trace')
 
-    video_name = os.path.splitext(video_path.split('/')[-1])[0]
-    output_video_name = model_name + '-' + video_name
-    output.column('frame').save_mp4(output_dir + '/' + output_video_name)
+    # Process outputs
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    # Process outputs into numpy array.
+    detection_outputs = output.column('detected_classes_and_scores').load()
+    detections = np.array([np.loads(d[1]) for d in detection_outputs])
+    # Write detections to output directory.
+    np.save('%s/detections.npy' % output_dir, detections)

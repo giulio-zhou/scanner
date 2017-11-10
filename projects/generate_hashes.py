@@ -36,7 +36,7 @@ with Database() as db:
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.strided(60),
+            sampled_frames: db.sampler.gather([i for i in range(0, 1800, 1)]),
             output_op: 'hashes'
         }
     )
@@ -52,13 +52,5 @@ with Database() as db:
     feature_vecs = output.column('caffe_output').load()
     feature_vec_npy = np.array([v[1].squeeze() for v in feature_vecs])
     print(feature_vec_npy, feature_vec_npy.shape)
-    # Create labels numpy array based on time.
-    interval = 100
-    labels = np.zeros(len(feature_vec_npy))
-    for i in range(0, len(labels), interval):
-        labels[i: i + interval] = (i // interval)
-    labels[i + interval:] = (i // interval) + 1
-    print(labels)
     # Write numpy arrays to output directory.
     np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
-    np.save('%s/labels.npy' % output_dir, labels)

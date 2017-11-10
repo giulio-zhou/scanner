@@ -43,7 +43,7 @@ with Database() as db:
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.strided(10),
+            sampled_frames: db.sampler.gather([i for i in range(0, 1800, 1)]),
             output_op: 'hashes'
         }
     )
@@ -61,14 +61,6 @@ with Database() as db:
     print(feature_vec_npy, feature_vec_npy.shape)
     downsampled_imgs = output.column('frame').load()
     downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])
-    # Create labels numpy array based on time.
-    interval = 100
-    labels = np.zeros(len(feature_vec_npy))
-    for i in range(0, len(labels), interval):
-        labels[i: i + interval] = (i // interval)
-    labels[i + interval:] = (i // interval) + 1
-    print(labels)
     # Write numpy arrays to output directory.
     np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
     np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)
-    np.save('%s/labels.npy' % output_dir, labels)

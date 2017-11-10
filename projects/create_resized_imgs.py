@@ -1,12 +1,14 @@
-from scannerpy import Database, DeviceType, Job, BulkJob
+from scannerpy import Database, DeviceType, Job, BulkJob, ColumnType
 from scannerpy.sampler import Sampler
 import numpy as np
 import os
 import sys
-os.environ["GLOG_minloglevel"] = "1"
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
 output_dir = sys.argv[2]
+# Optional use a network to generate annotated images.
+model_name = sys.argv[3]
 
 with Database() as db:
     load_video_from_scratch = True
@@ -15,23 +17,46 @@ with Database() as db:
 
     frame = db.ops.FrameInput()
     sampled_frames = frame.sample()
-    resized_imgs = db.ops.Resize(
-        frame = sampled_frames,
-        width = 120,
-        height = 80,
-        device=DeviceType.GPU
-    )
+    if len(sys.argv) >= 3:
+        batch_size = 1
+        can_batch = batch_size > 1
+        db.register_op('TfOp', [('input_frame', ColumnType.Video)],
+                               [('frame', ColumnType.Video)])
+        db.register_python_kernel(
+            'TfOp', DeviceType.CPU, script_dir + '/kernels/tf_op.py',
+            can_batch, batch_size)
+
+        boxed_frame = db.ops.TfOp(
+            input_frame = sampled_frames,
+            batch_size = batch_size,
+            batch = batch_size,
+            model_name = model_name,
+            device=DeviceType.CPU
+        )
+        resized_imgs = db.ops.Resize(
+            frame = boxed_frame,
+            width = 120,
+            height = 80,
+            device=DeviceType.GPU
+        )
+    else:
+        resized_imgs = db.ops.Resize(
+            frame = sampled_frames,
+            width = 120,
+            height = 80,
+            device=DeviceType.GPU
+        )
 
     output_op = db.ops.Output(columns=[resized_imgs])
     job = Job(
         op_args={
             frame: db.table('target_video').column('frame'),
-            sampled_frames: db.sampler.strided(60),
+            sampled_frames: db.sampler.gather([i for i in range(0, 1800, 1)]),
             output_op: 'resized_imgs'
         }
     )
     bulk_job = BulkJob(output_op, [job])
-    
+
     [output] = db.run(bulk_job, force=True, profiling=True)
     output.profiler().write_trace('hist.trace')
 

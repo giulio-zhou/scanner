@@ -6,6 +6,7 @@ import sys
 import tensorflow as tf
 
 def create_sprite_image(images):
+    # Format: (N, H, W, C)
     SPRITE_MAX_WIDTH, SPRITE_MAX_HEIGHT = 8192, 8192
     n, h, w, c = images.shape
     """
@@ -52,14 +53,12 @@ if len(sys.argv) >= 4 and sys.argv[3] != 'None':
     labels = np.load(sys.argv[3])
     embedding.metadata_path = 'metadata.tsv'
     with open(LOG_DIR + '/' + embedding.metadata_path, 'w') as f:
-        for y in labels:
-            f.write(str(int(y)) + '\n')
+        f.write('frame_no\thas_person\tperson_score\thas_vehicle\tvehicle_score\n')
+        for i, label_row in enumerate(labels):
+            f.write('\t'.join([str(i)] + [str(y) for y in label_row]) + '\n')
 
 if len(sys.argv) >= 5:
     # create sprite image
-    # REQUIRED: Choose number of images and width/height such that a square
-    #           grid can be made out of them.
-    # Format: (N, H, W, C)
     images = np.load(sys.argv[4])
     sprite_image = create_sprite_image(images)
     embedding.sprite.image_path = 'sprite.png'
