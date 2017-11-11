@@ -7,8 +7,6 @@ import sys
 script_dir = os.path.dirname(os.path.abspath(__file__))
 video_path = sys.argv[1]
 output_dir = sys.argv[2]
-# Optional use a network to generate annotated images.
-model_name = sys.argv[3]
 
 with Database() as db:
     load_video_from_scratch = True
@@ -17,7 +15,9 @@ with Database() as db:
 
     frame = db.ops.FrameInput()
     sampled_frames = frame.sample()
-    if len(sys.argv) >= 3:
+    # Optional use a network to generate annotated images.
+    if len(sys.argv) >= 4:
+        model_name = sys.argv[3]
         batch_size = 1
         can_batch = batch_size > 1
         db.register_op('TfOp', [('input_frame', ColumnType.Video)],
@@ -35,14 +35,14 @@ with Database() as db:
         )
         resized_imgs = db.ops.Resize(
             frame = boxed_frame,
-            width = 120,
+            width = 80,
             height = 80,
             device=DeviceType.GPU
         )
     else:
         resized_imgs = db.ops.Resize(
             frame = sampled_frames,
-            width = 120,
+            width = 80,
             height = 80,
             device=DeviceType.GPU
         )
@@ -65,6 +65,8 @@ with Database() as db:
         os.mkdir(output_dir)
     # Process outputs into numpy array.
     downsampled_imgs = output.column('frame').load()
-    downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])
+    # NOTE: Images appear to exit Scanner in BGR configuration.
+    downsampled_imgs_npy = \
+        np.array([img[1][:, :, ::-1] for img in downsampled_imgs])
     # Write numpy arrays to output directory.
     np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)

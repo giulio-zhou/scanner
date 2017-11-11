@@ -34,7 +34,8 @@ if not os.path.exists(LOG_DIR):
 
 embeddings_npy = np.load(path_to_embeddings)
 
-embedding_var = tf.Variable(embeddings_npy, name='embedding')
+with tf.device('/cpu:0'):
+    embedding_var = tf.Variable(embeddings_npy, name='embedding')
 config = projector.ProjectorConfig()
 
 embedding = config.embeddings.add()

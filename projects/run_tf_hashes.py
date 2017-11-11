@@ -61,6 +61,9 @@ with Database() as db:
     print(feature_vec_npy, feature_vec_npy.shape)
     downsampled_imgs = output.column('frame').load()
     downsampled_imgs_npy = np.array([img[1] for img in downsampled_imgs])
+    labels = np.arange(len(feature_vec_npy))
+    labels = labels.reshape(-1, 1)
     # Write numpy arrays to output directory.
     np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
+    np.save('%s/labels.npy' % output_dir, labels)
     np.save('%s/data.npy' % output_dir, downsampled_imgs_npy)

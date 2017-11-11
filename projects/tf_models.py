@@ -116,6 +116,7 @@ def ssd_mobilenet_v1_coco_detection_features(batch_size=1):
     return {
         'mode': 'frozen_graph',
         'checkpoint_path': get_frozen_graph_path('ssd_mobilenet_v1_coco'),
+        'header': ['has_person', 'person_conf', 'has_vehicle', 'vehicle_conf'],
         'input_tensors': ['image_tensor:0'],
         'output_tensors': ['detection_boxes:0', 'detection_scores:0',
                            'detection_classes:0', 'num_detections:0'],

@@ -52,5 +52,8 @@ with Database() as db:
     feature_vecs = output.column('caffe_output').load()
     feature_vec_npy = np.array([v[1].squeeze() for v in feature_vecs])
     print(feature_vec_npy, feature_vec_npy.shape)
+    labels = np.arange(len(feature_vec_npy))
+    labels = labels.reshape(-1, 1)
     # Write numpy arrays to output directory.
     np.save('%s/feature_vectors.npy' % output_dir, feature_vec_npy)
+    np.save('%s/labels.npy' % output_dir, labels)
