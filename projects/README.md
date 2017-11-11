@@ -47,6 +47,11 @@ This setup assumes that you have a GPU on your machine. There's probably no
 good reason to use the CPU version unless you're running Intel-Caffe on a
 machine with a number of good CPUs.
 
+NOTE: These are the directions that I follow after I've started running Scanner
+on Docker. Follow the main Scanner directions to get Scanner running on Docker,
+which will involve installing Docker as well as getting `nvidia-docker` and
+`nvidia-docker-compose` installed if you would like to use a GPU.
+
 First, pull the contents of this branch then recompile using
 ```
 cd build
