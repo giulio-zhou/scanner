@@ -18,16 +18,20 @@ def create_sprite_image(images):
     n_rows, n_cols = int(n_rows), int(n_cols)
     sprite_image = np.zeros((n_rows * h, n_cols * w, c))
     """
-    n_cols = SPRITE_MAX_WIDTH // w
-    n_rows = int(np.ceil(n / n_cols))
+    # n_cols = SPRITE_MAX_WIDTH // w
+    # n_rows = int(np.ceil(n / n_cols))
+    max_n_cols_rows = min(SPRITE_MAX_WIDTH // w, SPRITE_MAX_HEIGHT // h)
+    n_cols, n_rows = max_n_cols_rows, max_n_cols_rows
     assert n_rows * h <= SPRITE_MAX_HEIGHT
-    sprite_image = np.zeros((n_cols * w, n_cols * w, c), dtype=np.uint8)
+    # sprite_image = np.zeros((n_cols * w, n_cols * w, c), dtype=np.uint8)
+    sprite_image = np.zeros((n_rows * h, n_cols * w, c), dtype=np.uint8)
     for row in range(n_rows):
         for col in range(n_cols):
             if (row * n_cols + col) >= n:
                 break
             sprite_image[row*h:(row + 1)*h, col*w:(col+1)*w] = \
                 images[row * n_cols + col]
+    print(images.shape)
     if c == 1:
         sprite_image = np.dstack([sprite_image] * 3)
     return sprite_image
