@@ -9,21 +9,9 @@ def create_sprite_image(images):
     # Format: (N, H, W, C)
     SPRITE_MAX_WIDTH, SPRITE_MAX_HEIGHT = 8192, 8192
     n, h, w, c = images.shape
-    """
-    # Constraint: n_cols * w = n_rows * h
-    #             n_cols * n_rows = n
-    n_rows = np.sqrt((w / float(h)) * n)
-    n_cols = n / n_rows
-    assert n_rows == int(n_rows) and n_cols == int(n_cols)
-    n_rows, n_cols = int(n_rows), int(n_cols)
-    sprite_image = np.zeros((n_rows * h, n_cols * w, c))
-    """
-    # n_cols = SPRITE_MAX_WIDTH // w
-    # n_rows = int(np.ceil(n / n_cols))
     max_n_cols_rows = min(SPRITE_MAX_WIDTH // w, SPRITE_MAX_HEIGHT // h)
     n_cols, n_rows = max_n_cols_rows, max_n_cols_rows
     assert n_rows * h <= SPRITE_MAX_HEIGHT
-    # sprite_image = np.zeros((n_cols * w, n_cols * w, c), dtype=np.uint8)
     sprite_image = np.zeros((n_rows * h, n_cols * w, c), dtype=np.uint8)
     for row in range(n_rows):
         for col in range(n_cols):
@@ -57,9 +45,8 @@ if len(sys.argv) >= 4 and sys.argv[3] != 'None':
     labels = np.load(sys.argv[3])
     embedding.metadata_path = 'metadata.tsv'
     with open(LOG_DIR + '/' + embedding.metadata_path, 'w') as f:
-        f.write('frame_no\thas_person\tperson_score\thas_vehicle\tvehicle_score\n')
-        for i, label_row in enumerate(labels):
-            f.write('\t'.join([str(i)] + [str(y) for y in label_row]) + '\n')
+        for label_row in labels:
+            f.write('\t'.join([str(x) for x in label_row]) + '\n')
 
 if len(sys.argv) >= 5:
     # create sprite image
