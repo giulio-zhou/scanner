@@ -42,13 +42,35 @@ just the frame numbers (no header for 1-column labels for Tensorboard). Running
 `make_obj_detect_box_features.py` will replace `labels.npy`, so should be done
 after generating feature vectors if desired.
 
-## Applying networks using Scanner
+## Setup
+This setup assumes that you have a GPU on your machine. There's probably no
+good reason to use the CPU version unless you're running Intel-Caffe on a
+machine with a number of good CPUs.
+
+First, pull the contents of this branch then recompile using
+```
+cd build
+make -j\`nproc\`
+```
+
 If using anything from the Tensorflow models repo (visualization or Python TF
 network definitions), first run
 ```
 git submodule update --init models
 ```
 
+Download pip Tensorflow by running
+```
+pip install tensorflow-gpu
+```
+Get cudnn 6.0 for cuda version 8.0 and put the `libcudnn.so.6` file into
+`/usr/local/cuda/lib64` and run
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
+```
+or append whichever directory you put the `.so` file.
+
+## Applying networks using Scanner
 Invoking the following
 ```
 python projects/create_resized_imgs.py /var/home/data/jackson-town-square.mp4 output_dir ssd_mobilenet_v1_coco
