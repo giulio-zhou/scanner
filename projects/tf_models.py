@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import tensorflow as tf
 from skimage import img_as_ubyte
+from skimage.transform import resize
 
 def identity(x):
     return x
@@ -56,12 +57,12 @@ def mobilenet_v1_224(batch_size=1):
         'model_init_fn': create_mobilenet_model
     }
 
-def draw_tf_bounding_boxes(image_np, boxes, scores, classes, num_detections):
+def draw_tf_bounding_boxes(
+        image_np, boxes, scores, classes, num_detections, class_ids_to_names):
     import utils.visualization_utils as vis_util
-    from constants import coco_class_ids_to_names
     category_index = {
         i: {'name': name, 'id': i, 'display_name': name} \
-          for i, name in coco_class_ids_to_names.items()
+          for i, name in class_ids_to_names.items()
     }
     vis_util.visualize_boxes_and_labels_on_image_array(
         image_np,
@@ -127,10 +128,12 @@ def ssd_mobilenet_v1_coco_detection_features(batch_size=1):
 
 def ssd_mobilenet_v1_coco(batch_size=1):
     def post_process_fn(inputs, outputs):
+        from constants import coco_class_ids_to_names
         image_np = inputs[0][0]
         boxes, scores, classes, num_detections = outputs
         image_np = draw_tf_bounding_boxes(
-            image_np, boxes, scores, classes, num_detections)
+            image_np, boxes, scores, classes,
+            num_detections, class_ids_to_names)
         image_np = img_as_ubyte(image_np)
         return [[image_np]]
 
@@ -147,10 +150,12 @@ def ssd_mobilenet_v1_coco(batch_size=1):
 
 def faster_rcnn_resnet101_coco(batch_size=1):
     def post_process_fn(inputs, outputs):
+        from constants import coco_class_ids_to_names
         image_np = inputs[0][0]
         boxes, scores, classes, num_detections = outputs
         image_np = draw_tf_bounding_boxes(
-            image_np, boxes, scores, classes, num_detections)
+            image_np, boxes, scores, classes,
+            num_detections, class_ids_to_names)
         image_np = img_as_ubyte(image_np)
         return [[image_np]]
 
@@ -166,13 +171,29 @@ def faster_rcnn_resnet101_coco(batch_size=1):
     }
 
 def yolo_v2(batch_size=1):
+    def pre_process_fn(input_columns, batch_size):
+        batched_inputs = input_pre_process_fn(input_columns, batch_size)
+        if batch_size == 1:
+            return resize(batched_inputs, [608, 608]).reshape(-1, 608, 608, 3)
+        return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
+
     def post_process_fn(inputs, outputs):
+        from constants import coco_classes as class_names
+        class_ids_to_names = \
+            {i: class_names[i] for i in range(len(class_names))}
         output_imgs = []
         for i in range(len(inputs[0])):
             image_np = inputs[0][i]
-            boxes, scores, classes, num_detections = outputs
+            boxes, scores, classes = outputs
+            boxes /= 608 # Normalized coordinates
+            # Pad boxes, scores, classes if necessary
+            if len(boxes) == 1:
+                boxes = np.vstack([boxes, np.zeros((1, 4))])
+                scores = np.array([scores[0], 0])
+                classes = np.array([classes[0], 0])
             image_np = draw_tf_bounding_boxes(
-                image_np, boxes, scores, classes, num_detections)
+                image_np, boxes, scores, classes,
+                len(boxes), class_ids_to_names)
             image_np = img_as_ubyte(image_np)
             output_imgs.append(image_np)
         return [output_imgs]
@@ -181,7 +202,7 @@ def yolo_v2(batch_size=1):
     def create_yolo_v2_model(K):
         score_threshold, iou_threshold = 0.3, 0.5
         from keras.models import load_model
-        from constants import coco_classes as class_names 
+        from constants import coco_classes as class_names
         from constants import yolo_anchors as anchors
         from yad2k.models.keras_yolo import yolo_eval, yolo_head
         yolo_model = load_model(model_path)
@@ -193,16 +214,19 @@ def yolo_v2(batch_size=1):
             input_image_shape,
             score_threshold=score_threshold,
             iou_threshold=iou_threshold)
-        print(boxes, scores, classes)
 
     return {
         'mode': 'keras',
         'checkpoint_path': model_path,
-        'input_tensors': ['input_1:0'],
-        'output_tensors': [],
+        'input_tensors': \
+            ['input_1:0', 'Placeholder_112:0', # input_image_shape
+             'batch_normalization_1/keras_learning_phase:0'],
+        'output_tensors': ['Gather:0', 'Gather_1:0', 'Gather_2:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: input_pre_process_fn(cols[0], batch_size)},
+            {input_tensors[0]: pre_process_fn(cols[0], batch_size),
+             input_tensors[1]: [608, 608],
+             input_tensors[2]: 0},
         'model_init_fn': create_yolo_v2_model
     }
         

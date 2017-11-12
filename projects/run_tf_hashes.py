@@ -49,7 +49,7 @@ with Database() as db:
     )
     bulk_job = BulkJob(output_op, [job])
 
-    [output] = db.run(bulk_job, force=True, profiling=True)
+    [output] = db.run(bulk_job, force=True, profiling=True, pipeline_instances_per_node=1)
     output.profiler().write_trace('hist.trace')
 
     # Process outputs

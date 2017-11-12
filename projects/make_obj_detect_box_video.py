@@ -43,8 +43,11 @@ with Database() as db:
     )
     bulk_job = BulkJob(output_op, [job])
 
-    [output] = db.run(bulk_job, force=True, profiling=True)
+    [output] = db.run(bulk_job, force=True, profiling=True, pipeline_instances_per_node=1)
 
+    # Process outputs
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
     video_name = os.path.splitext(video_path.split('/')[-1])[0]
     output_video_name = model_name + '-' + video_name
     output.column('frame').save_mp4(output_dir + '/' + output_video_name)
