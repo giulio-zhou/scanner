@@ -111,7 +111,8 @@ and go to `localhost:<local_port>` in your browser.
 ## Writing a new (Tensorflow) model
 All Tensorflow model getter logic are in the `tf_nets` directory.
 
-There are two model types that are currently supported: `frozen` and `python`
+There are three model types that are currently supported:
+    `frozen`, `python`, and `keras`
 
 Frozen models generally freeze the batch size, but permit you to use a binary
 proto that contains both the network structure and weights (i.e. one file that
@@ -126,6 +127,11 @@ require that you somehow import the Python definition of a Tensorflow model. The
 import it. One main reason for this is that many of the stock TF graphs contain
 unremoved references to `SSTableReader`, which is an internal Google data reader
 that doesn't exist in open-source Tensorflow.
+
+Keras models require that `pipeline_instances_per_node` be set to 1, since Keras
+has an issue with multiple Tensorflow graphs being populated simultaneously. The
+behavior is otherwise similar to the Python model, other than requiring that the
+backend variable `K` be passed into the `model_init_fn`.
 
 To write a new model, just follow the examples of one of the models listed in
 `tf_models.py`.

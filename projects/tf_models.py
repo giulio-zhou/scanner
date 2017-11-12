@@ -178,13 +178,14 @@ def yolo_v2(batch_size=1):
         return [output_imgs]
 
     model_path = 'tf_nets/yolo_v2/yolo.h5'
-    def create_yolo_v2_model():
+    def create_yolo_v2_model(K):
         score_threshold, iou_threshold = 0.3, 0.5
         from keras.models import load_model
         from constants import coco_classes as class_names 
         from constants import yolo_anchors as anchors
         from yad2k.models.keras_yolo import yolo_eval, yolo_head
         yolo_model = load_model(model_path)
+        anchors = np.array(anchors).reshape(-1, 2)
         yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
         input_image_shape = K.placeholder(shape=(2,))
         boxes, scores, classes = yolo_eval(
@@ -197,11 +198,11 @@ def yolo_v2(batch_size=1):
     return {
         'mode': 'keras',
         'checkpoint_path': model_path,
-        'input_tensors': ['image_tensor:0'],
+        'input_tensors': ['input_1:0'],
         'output_tensors': [],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: input_pre_process_fn(cols[0])},
+            {input_tensors[0]: input_pre_process_fn(cols[0], batch_size)},
         'model_init_fn': create_yolo_v2_model
     }
         

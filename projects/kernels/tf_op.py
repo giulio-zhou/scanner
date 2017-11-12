@@ -46,7 +46,7 @@ class TfOpKernel(scannerpy.Kernel):
                 self.sess = tf.Session(config=sess_config)
                 from keras import backend as K
                 K.set_session(self.sess)
-                self.model_dict['model_init_fn']()
+                self.model_dict['model_init_fn'](K)
                 tf_graph = self.sess.graph
             else:
                 raise Exception("Invalid model loading mode: %s" % mode)
