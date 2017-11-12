@@ -52,7 +52,7 @@ def mobilenet_v1_224(batch_size=1):
         'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: pre_process_fn(cols, batch_size)},
+            {input_tensors[0]: input_pre_process_fn(cols, batch_size)},
         'model_init_fn': create_mobilenet_model
     }
 
@@ -165,6 +165,46 @@ def faster_rcnn_resnet101_coco(batch_size=1):
             lambda input_tensors, cols: {input_tensors[0]: cols[0]}
     }
 
+def yolo_v2(batch_size=1):
+    def post_process_fn(inputs, outputs):
+        output_imgs = []
+        for i in range(len(inputs[0])):
+            image_np = inputs[0][i]
+            boxes, scores, classes, num_detections = outputs
+            image_np = draw_tf_bounding_boxes(
+                image_np, boxes, scores, classes, num_detections)
+            image_np = img_as_ubyte(image_np)
+            output_imgs.append(image_np)
+        return [output_imgs]
+
+    model_path = 'tf_nets/yolo_v2/yolo.h5'
+    def create_yolo_v2_model():
+        score_threshold, iou_threshold = 0.3, 0.5
+        from keras.models import load_model
+        from constants import coco_classes as class_names 
+        from constants import yolo_anchors as anchors
+        from yad2k.models.keras_yolo import yolo_eval, yolo_head
+        yolo_model = load_model(model_path)
+        yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
+        input_image_shape = K.placeholder(shape=(2,))
+        boxes, scores, classes = yolo_eval(
+            yolo_outputs,
+            input_image_shape,
+            score_threshold=score_threshold,
+            iou_threshold=iou_threshold)
+        print(boxes, scores, classes)
+
+    return {
+        'mode': 'keras',
+        'checkpoint_path': model_path,
+        'input_tensors': ['image_tensor:0'],
+        'output_tensors': [],
+        'post_processing_fn': post_process_fn,
+        'session_feed_dict_fn': lambda input_tensors, cols: \
+            {input_tensors[0]: input_pre_process_fn(cols[0])},
+        'model_init_fn': create_yolo_v2_model
+    }
+        
 # This should return a dictionary with the following items:
 #     "checkpoint_path": directory containing frozen_inference_graph.pb
 #     "input_tensors": list of names of input tensors
@@ -183,5 +223,7 @@ def get_model_fn(model_name, batch_size=1):
         return ssd_mobilenet_v1_coco_feature_extractor(batch_size)
     elif model_name == 'faster_rcnn_resnet101_coco':
         return faster_rcnn_resnet101_coco(batch_size)
+    elif model_name == 'yolo_v2':
+        return yolo_v2(batch_size)
     else:
         raise Exception("Could not find network with name %s" % model_name)

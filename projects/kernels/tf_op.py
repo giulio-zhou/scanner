@@ -42,11 +42,17 @@ class TfOpKernel(scannerpy.Kernel):
                 saver = tf.train.Saver()
                 saver.restore(self.sess, checkpoint_path)
                 tf_graph = self.sess.graph
+            elif mode == 'keras':
+                self.sess = tf.Session(config=sess_config)
+                from keras import backend as K
+                K.set_session(self.sess)
+                self.model_dict['model_init_fn']()
+                tf_graph = self.sess.graph
             else:
                 raise Exception("Invalid model loading mode: %s" % mode)
 
-            self.input_tensors = get_tensors_by_name(tf_graph, input_tensors)
-            self.output_tensors = get_tensors_by_name(tf_graph, output_tensors)
+        self.input_tensors = get_tensors_by_name(tf_graph, input_tensors)
+        self.output_tensors = get_tensors_by_name(tf_graph, output_tensors)
 
     def close(self):
         pass

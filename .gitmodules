@@ -2,3 +2,7 @@
 	path = models
 	url = https://github.com/tensorflow/models.git
 	branch = master
+[submodule "tf_nets/YAD2K"]
+	path = tf_nets/YAD2K
+	url = https://github.com/giulio-zhou/YAD2K.git
+	branch = master
