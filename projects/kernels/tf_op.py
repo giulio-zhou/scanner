@@ -58,20 +58,6 @@ class TfOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
-        """
-        input_columns = input_columns[0]
-        num_entries = len(input_columns)
-        # Pad input if necessary
-        if num_entries < self.batch_size:
-            padding = [input_columns[0]] * (self.batch_size - num_entries)
-            inputs = np.array(input_columns + padding)
-        else:
-            inputs = np.array(input_columns)
-
-        scaled_input_columns = self.sess.run(self.output, {self.image: inputs})
-        return [[scaled_input_columns[i] for i in range(num_entries)]]
-        """
-        
         feed_dict = self.model_dict['session_feed_dict_fn'](self.input_tensors,
                                                             input_columns)
         outputs = self.sess.run(self.output_tensors, feed_dict)
