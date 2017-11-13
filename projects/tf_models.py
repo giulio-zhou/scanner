@@ -35,7 +35,7 @@ def input_pre_process_fn(input_columns, batch_size):
 def mobilenet_v1_224(batch_size=1):
     def create_mobilenet_model():
         from mobilenet_v1 import mobilenet_v1
-        inputs = tf.placeholder('uint8', [batch_size, None, None, 3],
+        inputs = tf.placeholder('uint8', [-1, None, None, 3],
                                 name='image_tensor')
         resized_inputs = tf.image.resize_images(inputs, [224, 224])
         mobilenet_v1(resized_inputs, num_classes=1001, is_training=False)
@@ -53,7 +53,7 @@ def mobilenet_v1_224(batch_size=1):
         'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: input_pre_process_fn(cols, batch_size)},
+            {input_tensors[0]: np.array(cols[0])},
         'model_init_fn': create_mobilenet_model
     }
 
@@ -172,9 +172,7 @@ def faster_rcnn_resnet101_coco(batch_size=1):
 
 def yolo_v2(batch_size=1):
     def pre_process_fn(input_columns, batch_size):
-        batched_inputs = input_pre_process_fn(input_columns, batch_size)
-        if batch_size == 1:
-            return resize(batched_inputs, [608, 608]).reshape(-1, 608, 608, 3)
+        batched_inputs = np.array(input_columns[0])
         return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
 
     def post_process_fn(inputs, outputs):
@@ -184,7 +182,7 @@ def yolo_v2(batch_size=1):
         output_imgs = []
         for i in range(len(inputs[0])):
             image_np = inputs[0][i]
-            boxes, scores, classes = outputs
+            boxes, scores, classes = outputs[i]
             boxes /= 608 # Normalized coordinates
             # Pad boxes, scores, classes if necessary
             if len(boxes) == 1:
@@ -224,7 +222,62 @@ def yolo_v2(batch_size=1):
         'output_tensors': ['Gather:0', 'Gather_1:0', 'Gather_2:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: pre_process_fn(cols[0], batch_size),
+            {input_tensors[0]: pre_process_fn(cols, batch_size),
+             input_tensors[1]: [608, 608],
+             input_tensors[2]: 0},
+        'model_init_fn': create_yolo_v2_model
+    }
+
+def yolo_v2_detection_labels(batch_size=1):
+    def pre_process_fn(input_columns, batch_size):
+        batched_inputs = np.array(input_columns[0])
+        return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
+
+    def post_process_fn(inputs, outputs):
+        from constants import coco_classes as class_names
+        class_ids_to_names = \
+            {i: class_names[i] for i in range(len(class_names))}
+        output_annotations = []
+        for i in range(len(inputs[0])):
+            boxes, scores, classes = outputs
+            boxes /= 608 # Normalized coordinates
+            output_npy = []
+            for j in range(len(boxes)):
+                entry = \
+                    [class_ids_to_names[classes[j]], scores[j]] + list(boxes[j])
+                output_npy.append(entry)
+            output_npy = np.array(output_npy)
+            output_annotations.append(np.ndarray.dumps(output_npy))
+        return [output_annotations]
+
+    model_path = 'tf_nets/yolo_v2/yolo.h5'
+    def create_yolo_v2_model(K):
+        score_threshold, iou_threshold = 0.3, 0.5
+        from keras.models import load_model
+        from constants import coco_classes as class_names
+        from constants import yolo_anchors as anchors
+        from yad2k.models.keras_yolo import yolo_eval, yolo_head
+        yolo_model = load_model(model_path)
+        anchors = np.array(anchors).reshape(-1, 2)
+        yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
+        input_image_shape = K.placeholder(shape=(2,))
+        boxes, scores, classes = yolo_eval(
+            yolo_outputs,
+            input_image_shape,
+            score_threshold=score_threshold,
+            iou_threshold=iou_threshold)
+
+    return {
+        'mode': 'keras',
+        'checkpoint_path': model_path,
+        'header': ['object_name', 'confidence', 'xmin', 'ymin', 'xmax', 'ymax'],
+        'input_tensors': \
+            ['input_1:0', 'Placeholder_112:0', # input_image_shape
+             'batch_normalization_1/keras_learning_phase:0'],
+        'output_tensors': ['Gather:0', 'Gather_1:0', 'Gather_2:0'],
+        'post_processing_fn': post_process_fn,
+        'session_feed_dict_fn': lambda input_tensors, cols: \
+            {input_tensors[0]: pre_process_fn(cols, batch_size),
              input_tensors[1]: [608, 608],
              input_tensors[2]: 0},
         'model_init_fn': create_yolo_v2_model
@@ -250,5 +303,7 @@ def get_model_fn(model_name, batch_size=1):
         return faster_rcnn_resnet101_coco(batch_size)
     elif model_name == 'yolo_v2':
         return yolo_v2(batch_size)
+    elif model_name == 'yolo_v2_detection_labels':
+        return yolo_v2_detection_labels(batch_size)
     else:
         raise Exception("Could not find network with name %s" % model_name)
