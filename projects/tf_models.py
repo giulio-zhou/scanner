@@ -172,7 +172,7 @@ def faster_rcnn_resnet101_coco(batch_size=1):
 
 def yolo_v2(batch_size=1):
     def pre_process_fn(input_columns, batch_size):
-        batched_inputs = np.array(input_columns[0])
+        batched_inputs = input_pre_process_fn(input_columns, batch_size)
         return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
 
     def post_process_fn(inputs, outputs):
@@ -180,10 +180,13 @@ def yolo_v2(batch_size=1):
         class_ids_to_names = \
             {i: class_names[i] for i in range(len(class_names))}
         output_imgs = []
+        all_boxes, all_scores, all_classes, all_frames = outputs
+        all_boxes /= 608 # Normalized coordinates.
         for i in range(len(inputs[0])):
             image_np = inputs[0][i]
-            boxes, scores, classes = outputs[i]
-            boxes /= 608 # Normalized coordinates
+            idx = np.where(all_frames == i)
+            boxes, scores, classes = \
+                all_boxes[idx], all_scores[idx], all_classes[idx]
             # Pad boxes, scores, classes if necessary
             if len(boxes) == 1:
                 boxes = np.vstack([boxes, np.zeros((1, 4))])
@@ -202,16 +205,17 @@ def yolo_v2(batch_size=1):
         from keras.models import load_model
         from constants import coco_classes as class_names
         from constants import yolo_anchors as anchors
-        from yad2k.models.keras_yolo import yolo_eval, yolo_head
+        from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_batch
         yolo_model = load_model(model_path)
         anchors = np.array(anchors).reshape(-1, 2)
         yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
         input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes = yolo_eval(
+        boxes, scores, classes, frames = yolo_eval_batch(
             yolo_outputs,
             input_image_shape,
             score_threshold=score_threshold,
-            iou_threshold=iou_threshold)
+            iou_threshold=iou_threshold,
+            batch_size=batch_size)
 
     return {
         'mode': 'keras',
@@ -219,7 +223,8 @@ def yolo_v2(batch_size=1):
         'input_tensors': \
             ['input_1:0', 'Placeholder_112:0', # input_image_shape
              'batch_normalization_1/keras_learning_phase:0'],
-        'output_tensors': ['Gather:0', 'Gather_1:0', 'Gather_2:0'],
+        'output_tensors': ['output_boxes:0', 'output_scores:0',
+                           'output_classes:0', 'output_frames:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
             {input_tensors[0]: pre_process_fn(cols, batch_size),
@@ -230,7 +235,7 @@ def yolo_v2(batch_size=1):
 
 def yolo_v2_detection_labels(batch_size=1):
     def pre_process_fn(input_columns, batch_size):
-        batched_inputs = np.array(input_columns[0])
+        batched_inputs = input_pre_process_fn(input_columns, batch_size)
         return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
 
     def post_process_fn(inputs, outputs):
@@ -238,10 +243,13 @@ def yolo_v2_detection_labels(batch_size=1):
         class_ids_to_names = \
             {i: class_names[i] for i in range(len(class_names))}
         output_annotations = []
+        all_boxes, all_scores, all_classes, all_frames = outputs
+        all_boxes /= 608 # Normalized coordinates.
         for i in range(len(inputs[0])):
-            boxes, scores, classes = outputs
-            boxes /= 608 # Normalized coordinates
             output_npy = []
+            idx = np.where(all_frames == i)
+            boxes, scores, classes = \
+                all_boxes[idx], all_scores[idx], all_classes[idx]
             for j in range(len(boxes)):
                 entry = \
                     [class_ids_to_names[classes[j]], scores[j]] + list(boxes[j])
@@ -256,16 +264,18 @@ def yolo_v2_detection_labels(batch_size=1):
         from keras.models import load_model
         from constants import coco_classes as class_names
         from constants import yolo_anchors as anchors
-        from yad2k.models.keras_yolo import yolo_eval, yolo_head
+        from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_batch
         yolo_model = load_model(model_path)
         anchors = np.array(anchors).reshape(-1, 2)
         yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
         input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes = yolo_eval(
+        boxes, scores, classes, frames = yolo_eval_batch(
             yolo_outputs,
             input_image_shape,
             score_threshold=score_threshold,
-            iou_threshold=iou_threshold)
+            iou_threshold=iou_threshold,
+            batch_size=batch_size)
+        print(boxes, scores, classes, frames)
 
     return {
         'mode': 'keras',
@@ -274,7 +284,8 @@ def yolo_v2_detection_labels(batch_size=1):
         'input_tensors': \
             ['input_1:0', 'Placeholder_112:0', # input_image_shape
              'batch_normalization_1/keras_learning_phase:0'],
-        'output_tensors': ['Gather:0', 'Gather_1:0', 'Gather_2:0'],
+        'output_tensors': ['output_boxes:0', 'output_scores:0',
+                           'output_classes:0', 'output_frames:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda input_tensors, cols: \
             {input_tensors[0]: pre_process_fn(cols, batch_size),
