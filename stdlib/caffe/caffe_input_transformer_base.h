@@ -84,8 +84,10 @@ class CaffeInputTransformer : public Halide::Generator<CaffeInputTransformer> {
         select(c == 0, mean_r, select(c == 1, mean_g, mean_b));
 
     Func rescaled("rescaled");
+    // rescaled(x, y, c) =
+    //     mean_subtract(x, y, 2 - c) / select(normalize, 255.0f, 1.0f);
     rescaled(x, y, c) =
-        mean_subtract(x, y, 2 - c) / select(normalize, 255.0f, 1.0f);
+        mean_subtract(x, y, 2 - c) / select(normalize, 58.82f, 1.0f);
     rescaled.bound(c, 0, 3);
 
     input.dim(0).set_stride(3).dim(2).set_stride(1);
