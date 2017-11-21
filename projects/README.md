@@ -59,9 +59,9 @@ make -j\`nproc\`
 ```
 
 If using anything from the Tensorflow models repo (visualization or Python TF
-network definitions), first run
+network definitions) or YOLOv2 with Keras, first run
 ```
-git submodule update --init models
+git submodule update --init
 ```
 
 Download pip Tensorflow by running
@@ -74,6 +74,11 @@ Get cudnn 6.0 for cuda version 8.0 and put the `libcudnn.so.6` file into
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
 ```
 or append whichever directory you put the `.so` file.
+
+Install Keras and HDF5 for Python using
+```
+pip install h5py keras
+```
 
 ## Applying networks using Scanner
 Invoking the following
