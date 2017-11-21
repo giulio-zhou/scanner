@@ -26,30 +26,29 @@ class TfOpKernel(scannerpy.Kernel):
         # NOTE: Batching is only allowed in python mode because frozen graphs
         #       cannot be modified.
 
-        with tf.device('/gpu:0'):
-            if mode == 'frozen_graph':
-                tf_graph = tf.Graph()
-                with tf_graph.as_default():
-                    od_graph_def = tf.GraphDef()
-                    with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
-                        serialized_graph = fid.read()
-                        od_graph_def.ParseFromString(serialized_graph)
-                        tf.import_graph_def(od_graph_def, name='')
-                self.sess = tf.Session(graph=tf_graph, config=sess_config)
-            elif mode == 'python':
-                self.sess = tf.Session(config=sess_config)
-                self.model_dict['model_init_fn']()
-                saver = tf.train.Saver()
-                saver.restore(self.sess, checkpoint_path)
-                tf_graph = self.sess.graph
-            elif mode == 'keras':
-                self.sess = tf.Session(config=sess_config)
-                from keras import backend as K
-                K.set_session(self.sess)
-                self.model_dict['model_init_fn'](K)
-                tf_graph = self.sess.graph
-            else:
-                raise Exception("Invalid model loading mode: %s" % mode)
+        if mode == 'frozen_graph':
+            tf_graph = tf.Graph()
+            with tf_graph.as_default():
+                od_graph_def = tf.GraphDef()
+                with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
+                    serialized_graph = fid.read()
+                    od_graph_def.ParseFromString(serialized_graph)
+                    tf.import_graph_def(od_graph_def, name='')
+            self.sess = tf.Session(graph=tf_graph, config=sess_config)
+        elif mode == 'python':
+            self.sess = tf.Session(config=sess_config)
+            self.model_dict['model_init_fn']()
+            saver = tf.train.Saver()
+            saver.restore(self.sess, checkpoint_path)
+            tf_graph = self.sess.graph
+        elif mode == 'keras':
+            self.sess = tf.Session(config=sess_config)
+            from keras import backend as K
+            K.set_session(self.sess)
+            self.model_dict['model_init_fn'](K)
+            tf_graph = self.sess.graph
+        else:
+            raise Exception("Invalid model loading mode: %s" % mode)
 
         self.input_tensors = get_tensors_by_name(tf_graph, input_tensors)
         self.output_tensors = get_tensors_by_name(tf_graph, output_tensors)
@@ -61,6 +60,15 @@ class TfOpKernel(scannerpy.Kernel):
         feed_dict = self.model_dict['session_feed_dict_fn'](self.input_tensors,
                                                             input_columns)
         outputs = self.sess.run(self.output_tensors, feed_dict)
+        # run_metadata = tf.RunMetadata()
+        # outputs = self.sess.run(self.output_tensors, feed_dict,
+        #                         options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+        #                         run_metadata=run_metadata)
+        # tf.profiler.profile(
+        #     self.sess.graph,
+        #     run_meta=run_metadata,
+        #     cmd='op',
+        #     options=tf.profiler.ProfileOptionBuilder.time_and_memory())
         post_processed_outputs = \
             self.model_dict['post_processing_fn'](input_columns, outputs)
         return post_processed_outputs
