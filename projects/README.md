@@ -135,3 +135,22 @@ backend variable `K` be passed into the `model_init_fn`.
 
 To write a new model, just follow the examples of one of the models listed in
 `tf_models.py`.
+
+## Profiling Tensorflow
+Scanner's profiling tools only allow you to see performance at the granularity of Scanner ops. If you would like to profile Tensorflow performance in the custom Python Tensorflow kernel, replace a statement such as 
+```
+outputs = self.sess.run(self.output_tensors, feed_dict)
+```
+with
+```
+run_metadata = tf.RunMetadata()
+outputs = self.sess.run(self.output_tensors, feed_dict,
+                        options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+                        run_metadata=run_metadata)
+tf.profiler.profile(
+    self.sess.graph,
+    run_meta=run_metadata,
+    cmd='op',
+    options=tf.profiler.ProfileOptionBuilder.time_and_memory())
+```
+which will output the fraction of CPU and GPU time spent in each Tensorflow Op. You can also change `cmd` to 'graph' for a printout of time spent in each node of the graph. Lastly, profiling the GPU requires that the `LD_LIBRARY_PATH` environment variable contain a `lib` directory with `libcupti.so`, or the shared object corresponding to CUPTI, the CUDA Profiling Tools Interface.
