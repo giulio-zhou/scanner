@@ -52,7 +52,7 @@ def mobilenet_v1_224(batch_size=1):
         'input_tensors': ['image_tensor:0'],
         'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
         'post_processing_fn': post_process_fn,
-        'session_feed_dict_fn': lambda input_tensors, cols: \
+        'session_feed_dict_fn': lambda sess, input_tensors, cols: \
             {input_tensors[0]: np.array(cols[0])},
         'model_init_fn': create_mobilenet_model
     }
@@ -88,7 +88,7 @@ def ssd_mobilenet_v1_coco_feature_extractor(batch_size=1):
         'output_tensors': ['FeatureExtractor/MobilenetV1/Conv2d_13_pointwise_2_Conv2d_2_3x3_s2_512/Relu6:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': \
-            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+            lambda sess, input_tensors, cols: {input_tensors[0]: cols[0]}
     }
 
 def ssd_mobilenet_v1_coco_detection_features(batch_size=1):
@@ -123,7 +123,7 @@ def ssd_mobilenet_v1_coco_detection_features(batch_size=1):
                            'detection_classes:0', 'num_detections:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': \
-            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+            lambda sess, input_tensors, cols: {input_tensors[0]: cols[0]}
     }
 
 def ssd_mobilenet_v1_coco(batch_size=1):
@@ -145,7 +145,7 @@ def ssd_mobilenet_v1_coco(batch_size=1):
                            'detection_classes:0', 'num_detections:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': \
-            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+            lambda sess, input_tensors, cols: {input_tensors[0]: cols[0]}
     }
 
 def faster_rcnn_resnet101_coco(batch_size=1):
@@ -167,13 +167,32 @@ def faster_rcnn_resnet101_coco(batch_size=1):
                            'detection_classes:0', 'num_detections:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': \
-            lambda input_tensors, cols: {input_tensors[0]: cols[0]}
+            lambda sess, input_tensors, cols: {input_tensors[0]: cols[0]}
     }
+
+def yolo_v2_model(model_path, batch_size=1):
+    def create_yolo_v2_model(K):
+        score_threshold, iou_threshold = 0.3, 0.5
+        from keras.models import load_model
+        from constants import coco_classes as class_names
+        from constants import yolo_anchors as anchors
+        from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_batch
+        yolo_model = load_model(model_path)
+        anchors = np.array(anchors).reshape(-1, 2)
+        yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
+        input_image_shape = K.placeholder(shape=(2,))
+        boxes, scores, classes, frames = yolo_eval_batch(
+            yolo_outputs,
+            input_image_shape,
+            score_threshold=score_threshold,
+            iou_threshold=iou_threshold,
+            batch_size=batch_size)
+    return create_yolo_v2_model
 
 def yolo_v2(batch_size=1):
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)
-        return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
+        return batched_inputs
 
     def post_process_fn(inputs, outputs):
         from constants import coco_classes as class_names
@@ -200,22 +219,8 @@ def yolo_v2(batch_size=1):
         return [output_imgs]
 
     model_path = 'tf_nets/yolo_v2/yolo.h5'
-    def create_yolo_v2_model(K):
-        score_threshold, iou_threshold = 0.3, 0.5
-        from keras.models import load_model
-        from constants import coco_classes as class_names
-        from constants import yolo_anchors as anchors
-        from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_batch
-        yolo_model = load_model(model_path)
-        anchors = np.array(anchors).reshape(-1, 2)
-        yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
-        input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes, frames = yolo_eval_batch(
-            yolo_outputs,
-            input_image_shape,
-            score_threshold=score_threshold,
-            iou_threshold=iou_threshold,
-            batch_size=batch_size)
+    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
+    resized_imgs = tf.image.resize_images(input_imgs, [608, 608]) / 255.
 
     return {
         'mode': 'keras',
@@ -226,17 +231,19 @@ def yolo_v2(batch_size=1):
         'output_tensors': ['output_boxes:0', 'output_scores:0',
                            'output_classes:0', 'output_frames:0'],
         'post_processing_fn': post_process_fn,
-        'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: pre_process_fn(cols, batch_size),
+        'session_feed_dict_fn': lambda sess, input_tensors, cols: \
+            {input_tensors[0]: \
+                 sess.run(resized_imgs, feed_dict={
+                     input_imgs: pre_process_fn(cols, batch_size)}),
              input_tensors[1]: [608, 608],
              input_tensors[2]: 0},
-        'model_init_fn': create_yolo_v2_model
+        'model_init_fn': yolo_v2_model(model_path, batch_size)
     }
 
 def yolo_v2_detection_labels(batch_size=1):
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)
-        return np.array(map(lambda x: resize(x, [608, 608]), batched_inputs))
+        return batched_inputs
 
     def post_process_fn(inputs, outputs):
         from constants import coco_classes as class_names
@@ -259,23 +266,8 @@ def yolo_v2_detection_labels(batch_size=1):
         return [output_annotations]
 
     model_path = 'tf_nets/yolo_v2/yolo.h5'
-    def create_yolo_v2_model(K):
-        score_threshold, iou_threshold = 0.3, 0.5
-        from keras.models import load_model
-        from constants import coco_classes as class_names
-        from constants import yolo_anchors as anchors
-        from yad2k.models.keras_yolo import yolo_eval, yolo_head, yolo_eval_batch
-        yolo_model = load_model(model_path)
-        anchors = np.array(anchors).reshape(-1, 2)
-        yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
-        input_image_shape = K.placeholder(shape=(2,))
-        boxes, scores, classes, frames = yolo_eval_batch(
-            yolo_outputs,
-            input_image_shape,
-            score_threshold=score_threshold,
-            iou_threshold=iou_threshold,
-            batch_size=batch_size)
-        print(boxes, scores, classes, frames)
+    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
+    resized_imgs = tf.image.resize_images(input_imgs, [608, 608]) / 255.
 
     return {
         'mode': 'keras',
@@ -287,11 +279,13 @@ def yolo_v2_detection_labels(batch_size=1):
         'output_tensors': ['output_boxes:0', 'output_scores:0',
                            'output_classes:0', 'output_frames:0'],
         'post_processing_fn': post_process_fn,
-        'session_feed_dict_fn': lambda input_tensors, cols: \
-            {input_tensors[0]: pre_process_fn(cols, batch_size),
+        'session_feed_dict_fn': lambda sess, input_tensors, cols: \
+            {input_tensors[0]: \
+                 sess.run(resized_imgs, feed_dict={
+                     input_imgs: pre_process_fn(cols, batch_size)}),
              input_tensors[1]: [608, 608],
              input_tensors[2]: 0},
-        'model_init_fn': create_yolo_v2_model
+        'model_init_fn': yolo_v2_model(model_path, batch_size)
     }
         
 # This should return a dictionary with the following items:

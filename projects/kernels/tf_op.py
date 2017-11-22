@@ -57,8 +57,8 @@ class TfOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
-        feed_dict = self.model_dict['session_feed_dict_fn'](self.input_tensors,
-                                                            input_columns)
+        feed_dict = self.model_dict['session_feed_dict_fn'](
+            self.sess, self.input_tensors, input_columns)
         outputs = self.sess.run(self.output_tensors, feed_dict)
         # run_metadata = tf.RunMetadata()
         # outputs = self.sess.run(self.output_tensors, feed_dict,
