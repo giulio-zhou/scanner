@@ -190,6 +190,12 @@ def yolo_v2_model(model_path, batch_size=1):
     return create_yolo_v2_model
 
 def yolo_v2(batch_size=1):
+    model_height, model_width = 608, 608
+    model_path = 'tf_nets/yolo_v2/yolo.h5'
+    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
+    resized_imgs = \
+        tf.image.resize_images(input_imgs, [model_height, model_width]) / 255.
+
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)
         return batched_inputs
@@ -200,7 +206,7 @@ def yolo_v2(batch_size=1):
             {i: class_names[i] for i in range(len(class_names))}
         output_imgs = []
         all_boxes, all_scores, all_classes, all_frames = outputs
-        all_boxes /= 608 # Normalized coordinates.
+        all_boxes /= model_height # Normalized coordinates.
         for i in range(len(inputs[0])):
             image_np = inputs[0][i]
             idx = np.where(all_frames == i)
@@ -218,10 +224,6 @@ def yolo_v2(batch_size=1):
             output_imgs.append(image_np)
         return [output_imgs]
 
-    model_path = 'tf_nets/yolo_v2/yolo.h5'
-    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
-    resized_imgs = tf.image.resize_images(input_imgs, [608, 608]) / 255.
-
     return {
         'mode': 'keras',
         'checkpoint_path': model_path,
@@ -235,12 +237,18 @@ def yolo_v2(batch_size=1):
             {input_tensors[0]: \
                  sess.run(resized_imgs, feed_dict={
                      input_imgs: pre_process_fn(cols, batch_size)}),
-             input_tensors[1]: [608, 608],
+             input_tensors[1]: [model_height, model_width],
              input_tensors[2]: 0},
         'model_init_fn': yolo_v2_model(model_path, batch_size)
     }
 
 def yolo_v2_detection_labels(batch_size=1):
+    model_height, model_width = 608, 608
+    model_path = 'tf_nets/yolo_v2/yolo.h5'
+    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
+    resized_imgs = \
+        tf.image.resize_images(input_imgs, [model_height, model_width]) / 255.
+
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)
         return batched_inputs
@@ -251,7 +259,7 @@ def yolo_v2_detection_labels(batch_size=1):
             {i: class_names[i] for i in range(len(class_names))}
         output_annotations = []
         all_boxes, all_scores, all_classes, all_frames = outputs
-        all_boxes /= 608 # Normalized coordinates.
+        all_boxes /= model_height # Normalized coordinates.
         for i in range(len(inputs[0])):
             output_npy = []
             idx = np.where(all_frames == i)
@@ -264,10 +272,6 @@ def yolo_v2_detection_labels(batch_size=1):
             output_npy = np.array(output_npy)
             output_annotations.append(np.ndarray.dumps(output_npy))
         return [output_annotations]
-
-    model_path = 'tf_nets/yolo_v2/yolo.h5'
-    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
-    resized_imgs = tf.image.resize_images(input_imgs, [608, 608]) / 255.
 
     return {
         'mode': 'keras',
@@ -283,7 +287,7 @@ def yolo_v2_detection_labels(batch_size=1):
             {input_tensors[0]: \
                  sess.run(resized_imgs, feed_dict={
                      input_imgs: pre_process_fn(cols, batch_size)}),
-             input_tensors[1]: [608, 608],
+             input_tensors[1]: [model_height, model_width],
              input_tensors[2]: 0},
         'model_init_fn': yolo_v2_model(model_path, batch_size)
     }
