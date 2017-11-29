@@ -196,8 +196,8 @@ def yolo_v2(batch_size=1):
     model_height, model_width = 416, 416
     model_path = 'tf_nets/yolo_v2/yolo.h5'
     input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
-    resized_imgs = \
-        tf.image.resize_images(input_imgs, [model_height, model_width]) / 255.
+    resized_imgs = tf.image.resize_images(
+        tf.cast(input_imgs, tf.float32), [model_height, model_width]) / 255.
 
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)
@@ -249,8 +249,8 @@ def yolo_v2_detection_labels(batch_size=1):
     model_height, model_width = 416, 416
     model_path = 'tf_nets/yolo_v2/yolo.h5'
     input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
-    resized_imgs = \
-        tf.image.resize_images(input_imgs, [model_height, model_width]) / 255.
+    resized_imgs = tf.image.resize_images(
+        tf.cast(input_imgs, tf.float32), [model_height, model_width]) / 255.
 
     def pre_process_fn(input_columns, batch_size):
         batched_inputs = input_pre_process_fn(input_columns, batch_size)

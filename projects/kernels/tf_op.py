@@ -20,8 +20,7 @@ class TfOpKernel(scannerpy.Kernel):
         checkpoint_path = self.model_dict['checkpoint_path']
         input_tensors = self.model_dict['input_tensors']
         output_tensors = self.model_dict['output_tensors']
-        sess_config = tf.ConfigProto(
-            allow_soft_placement=True, log_device_placement=True)
+        sess_config = tf.ConfigProto(log_device_placement=True)
 
         # NOTE: Batching is only allowed in python mode because frozen graphs
         #       cannot be modified.
