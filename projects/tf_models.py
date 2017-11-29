@@ -35,10 +35,11 @@ def input_pre_process_fn(input_columns, batch_size):
 def mobilenet_v1_224(batch_size=1):
     def create_mobilenet_model():
         from mobilenet_v1 import mobilenet_v1
-        inputs = tf.placeholder('uint8', [-1, None, None, 3],
+        inputs = tf.placeholder('uint8', [batch_size, None, None, 3],
                                 name='image_tensor')
         resized_inputs = tf.image.resize_images(inputs, [224, 224])
-        mobilenet_v1(resized_inputs, num_classes=1001, is_training=False)
+        mobilenet_v1(resized_inputs, num_classes=1001,
+                     is_training=False, global_pool=True)
 
     def post_process_fn(input_columns, outputs):
         num_outputs = len(input_columns)
@@ -50,10 +51,11 @@ def mobilenet_v1_224(batch_size=1):
         'checkpoint_path': get_single_checkpoint_path(
             'mobilenet', 'mobilenet_v1_1.0_224.ckpt'),
         'input_tensors': ['image_tensor:0'],
-        'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
+        # 'output_tensors': ['MobilenetV1/Logits/AvgPool_1a/AvgPool:0'],
+        'output_tensors': ['MobilenetV1/Logits/global_pool:0'],
         'post_processing_fn': post_process_fn,
         'session_feed_dict_fn': lambda sess, input_tensors, cols: \
-            {input_tensors[0]: np.array(cols[0])},
+            {input_tensors[0]: input_pre_process_fn(cols, batch_size)},
         'model_init_fn': create_mobilenet_model
     }
 
@@ -71,7 +73,8 @@ def draw_tf_bounding_boxes(
         np.squeeze(scores),
         category_index,
         use_normalized_coordinates=True,
-        line_thickness=8)
+        line_thickness=8,
+        min_score_thresh=0.3)
     return image_np
 
 def ssd_mobilenet_v1_coco_feature_extractor(batch_size=1):
@@ -190,7 +193,7 @@ def yolo_v2_model(model_path, batch_size=1):
     return create_yolo_v2_model
 
 def yolo_v2(batch_size=1):
-    model_height, model_width = 608, 608
+    model_height, model_width = 416, 416
     model_path = 'tf_nets/yolo_v2/yolo.h5'
     input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
     resized_imgs = \
@@ -243,7 +246,7 @@ def yolo_v2(batch_size=1):
     }
 
 def yolo_v2_detection_labels(batch_size=1):
-    model_height, model_width = 608, 608
+    model_height, model_width = 416, 416
     model_path = 'tf_nets/yolo_v2/yolo.h5'
     input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
     resized_imgs = \
