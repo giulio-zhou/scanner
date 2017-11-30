@@ -1,6 +1,7 @@
 import caffe
 import numpy as np
 import scannerpy
+import tensorflow as tf
 from caffe_models import get_model_fn
 
 class CaffeOpKernel(scannerpy.Kernel):
@@ -8,6 +9,9 @@ class CaffeOpKernel(scannerpy.Kernel):
         self.protobufs = protobufs
         args = protobufs.TfOpArgs()
         args.ParseFromString(config)
+
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2)
+        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         self.batch_size = args.batch_size
         self.model_dict = get_model_fn(args.model_name,
                                        batch_size=self.batch_size)
@@ -27,7 +31,8 @@ class CaffeOpKernel(scannerpy.Kernel):
         pass
 
     def execute(self, input_columns):
-        inputs = self.model_dict['input_preprocess_fn'](input_columns)
+        inputs = \
+            self.model_dict['input_preprocess_fn'](self.sess, input_columns)
         outputs = self.model_dict['inference_fn'](self.model, inputs)
         post_processed_outputs = \
             self.model_dict['post_processing_fn'](input_columns, outputs)

@@ -1,5 +1,6 @@
 import caffe
 import numpy as np
+import tensorflow as tf
 from skimage.transform import resize
 
 def input_pre_process_fn(input_columns, batch_size):
@@ -12,13 +13,19 @@ def input_pre_process_fn(input_columns, batch_size):
     return inputs
 
 def mobilenet(batch_size=1):
-    def preprocess_fn(input_columns):
-        batched_inputs = input_pre_process_fn(input_columns, batch_size)
-        resized_inputs = \
-            np.array(map(lambda x: resize(x, [224, 224]), batched_inputs))
-        normalized_inputs = \
-            0.017 * (255. * resized_inputs - [123.68, 116.78, 103.94])
-        return normalized_inputs
+    input_imgs = tf.placeholder('uint8', [None, None, None, 3], name='imgs')
+    resized_imgs = tf.image.resize_images(
+        tf.cast(input_imgs, tf.float32), [224, 224])
+    normalized_inputs = \
+        0.017 * (resized_imgs - [123.68, 116.78, 103.94])
+
+    # def preprocess_fn(input_columns):
+    #     batched_inputs = input_pre_process_fn(input_columns, batch_size)
+    #     resized_inputs = \
+    #         np.array(map(lambda x: resize(x, [224, 224]), batched_inputs))
+    #     normalized_inputs = \
+    #         0.017 * (255. * resized_inputs - [123.68, 116.78, 103.94])
+    #     return normalized_inputs
 
     def inference_fn(model, inputs):
         model.blobs['data'].data[...] = np.transpose(inputs, (0, 3, 1, 2))
@@ -36,7 +43,9 @@ def mobilenet(batch_size=1):
         'model_prototxt_path': 'nets/mobilenet_deploy_caffe_group.prototxt',
         'model_weights_path': 'nets/mobilenet.caffemodel',
         'input_dims': [224, 224],
-        'input_preprocess_fn': preprocess_fn,
+        'input_preprocess_fn': lambda sess, cols: sess.run(
+            normalized_inputs, 
+            feed_dict={input_imgs: input_pre_process_fn(cols, batch_size)}),
         'inference_fn': inference_fn,
         'post_processing_fn': post_process_fn,
     }
