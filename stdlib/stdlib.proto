@@ -24,6 +24,11 @@ message CaffeArgs {
   int32 batch_size = 2;
 }
 
+message CaffeOpArgs {
+  string model_name = 1;
+  int32 batch_size = 2;
+}
+
 message FacenetArgs {
   CaffeArgs caffe_args = 1;
   float scale = 2;
