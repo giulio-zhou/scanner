@@ -19,14 +19,6 @@ def mobilenet(batch_size=1):
     normalized_inputs = \
         0.017 * (resized_imgs - [123.68, 116.78, 103.94])
 
-    # def preprocess_fn(input_columns):
-    #     batched_inputs = input_pre_process_fn(input_columns, batch_size)
-    #     resized_inputs = \
-    #         np.array(map(lambda x: resize(x, [224, 224]), batched_inputs))
-    #     normalized_inputs = \
-    #         0.017 * (255. * resized_inputs - [123.68, 116.78, 103.94])
-    #     return normalized_inputs
-
     def inference_fn(model, inputs):
         model.blobs['data'].data[...] = np.transpose(inputs, (0, 3, 1, 2))
         model.forward()
@@ -40,7 +32,7 @@ def mobilenet(batch_size=1):
         return [[serialize_fn(outputs[0][i]) for i in range(num_outputs)]]
 
     return {
-        'model_prototxt_path': 'nets/mobilenet_deploy_caffe_group.prototxt',
+        'model_prototxt_path': 'nets/mobilenet_deploy.prototxt',
         'model_weights_path': 'nets/mobilenet.caffemodel',
         'input_dims': [224, 224],
         'input_preprocess_fn': lambda sess, cols: sess.run(
