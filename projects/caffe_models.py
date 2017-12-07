@@ -12,16 +12,17 @@ def input_pre_process_fn(input_columns, batch_size):
         inputs = np.array(cols)
     return inputs
 
-def create_feature_grid_tf(input_imgs, feature_tensors, factor):
+def create_feature_grid_tf(input_imgs, feature_tensors, vis_weights, factor):
     def make_feature_norm_map(height, width, activation_tensor,
-                              min_norm=0, max_norm=2):
+                              min_norm=0, max_norm=1):
         norm = tf.norm(activation_tensor, axis=1)
         norm /= tf.sqrt(tf.cast(tf.shape(activation_tensor)[1], tf.float32))
         norm = tf.clip_by_value(norm, 0, max_norm)
         activations_mask = (norm - min_norm) / (max_norm - min_norm)
         activations_mask = tf.stack([activations_mask] * 3, axis=3)
-        activations_mask = \
-            tf.image.resize_images(activations_mask, [height, width])
+        activations_mask = tf.image.resize_images(
+            activations_mask, [height, width],
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         activations_mask = tf.cast(activations_mask * 255, tf.uint8)
         return activations_mask
     num_imgs = tf.shape(input_imgs)[0]
@@ -32,7 +33,8 @@ def create_feature_grid_tf(input_imgs, feature_tensors, factor):
     for i in range(factor * factor):
         if i < len(feature_tensors):
             feature_map = make_feature_norm_map(
-                feature_height, feature_width, feature_tensors[i])
+                feature_height, feature_width,
+                feature_tensors[i], max_norm=vis_weights[i])
         else:
             # Pad the end of the grid with zeros.
             feature_map = \
@@ -90,10 +92,11 @@ def mobilenet_feature_maps(batch_size=1):
               "conv3_2/sep", "conv4_1/sep", "conv4_2/sep", "conv5_1/sep",
               "conv5_2/sep", "conv5_3/sep", "conv5_4/sep", "conv5_5/sep",
               "conv5_6/sep", "conv6/sep"]
+    vis_weights = [1.0 for _ in range(12)] + [0.2, 5.0]
     feature_map_tensors = [tf.placeholder('float32', [None, None, None, None], 
                                           name=i) for i in layers]
     imgs_and_feature_maps = \
-        create_feature_grid_tf(input_imgs, feature_map_tensors, 4)
+        create_feature_grid_tf(input_imgs, feature_map_tensors, vis_weights, 4)
 
     def inference_fn(model, inputs):
         outputs = []
