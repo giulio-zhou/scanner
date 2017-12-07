@@ -42,6 +42,34 @@ just the frame numbers (no header for 1-column labels for Tensorboard). Running
 `make_obj_detect_box_features.py` will replace `labels.npy`, so should be done
 after generating feature vectors if desired.
 
+## Pre-Setup Instructions
+The Pre-Setup instructions (for setting up the basic dependencies) must be
+completed before the actual Setup of these modules can be carried out.
+
+These instructions have been verified to work on a GCP Ubuntu 16.04 instance.
+
+First, follow the instructions on the Docker website to install `docker-ce`.
+
+Then, install the NVIDIA drivers using `sudo apt install nvidia-384` and
+install version 1.0 of `nvidia-docker` by following the instructions on this
+[page]("https://github.com/NVIDIA/nvidia-docker/wiki/Installation-(version-1.0)").
+I haven't yet gotten this to work with `nvidia-docker-2` but this should work
+fine in the meantime.
+
+Test out `nvidia-docker` by running the following command:
+```
+sudo nvidia-docker run --rm nvidia/cuda nvidia-smi
+```
+This will probably not work. You will first have to install `nvidia-modprobe`
+using `apt`. Once you've done so, running `sudo service nvidia-docker status`
+will likely show an `nvidia-docker` service that's failed to start. Now that
+the prerequisites have been properly installed, start the service using
+`sudo service nvidia-docker start`.
+
+Lastly, in order to run `nvidia-docker-compose` as `sudo`, actually install
+it as `sudo` by first switching to root using `sudo -i`, and then run
+`pip install nvidia-docker-compose`.
+
 ## Setup
 This setup assumes that you have a GPU on your machine. There's probably no
 good reason to use the CPU version unless you're running Intel-Caffe on a
