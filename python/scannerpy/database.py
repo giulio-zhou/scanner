@@ -289,7 +289,8 @@ class Database:
         channel = grpc.insecure_channel(
             self._master_address,
             options=[('grpc.max_message_length', 24499183 * 2)])
-        self._master = self.protobufs.MasterStub(channel)
+        import scanner.engine.rpc_pb2_grpc as rpc_types_grpc
+        self._master = rpc_types_grpc.MasterStub(channel)
         result = False
         try:
             self._master.Ping(self.protobufs.Empty())
@@ -319,13 +320,14 @@ class Database:
         def heartbeat_task(q, master_address):
             import scanner.metadata_pb2 as metadata_types
             import scanner.engine.rpc_pb2 as rpc_types
+            import scanner.engine.rpc_pb2_grpc as rpc_types_grpc
             import scanner.types_pb2 as misc_types
             import libscanner as bindings
 
             channel = grpc.insecure_channel(
                 master_address,
                 options=[('grpc.max_message_length', 24499183 * 2)])
-            master = rpc_types.MasterStub(channel)
+            master = rpc_types_grpc.MasterStub(channel)
             while q.empty():
                 master.PokeWatchdog(rpc_types.Empty())
                 time.sleep(1)
