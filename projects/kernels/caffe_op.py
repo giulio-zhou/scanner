@@ -34,8 +34,8 @@ class CaffeOpKernel(scannerpy.Kernel):
         inputs = \
             self.model_dict['input_preprocess_fn'](self.sess, input_columns)
         outputs = self.model_dict['inference_fn'](self.model, inputs)
-        post_processed_outputs = \
-            self.model_dict['post_processing_fn'](input_columns, outputs)
+        post_processed_outputs = self.model_dict['post_processing_fn'](
+            input_columns, outputs, self.sess)
         return post_processed_outputs
 
 KERNEL = CaffeOpKernel
