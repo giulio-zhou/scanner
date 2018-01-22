@@ -6,3 +6,7 @@
 	path = tf_nets/YAD2K
 	url = https://github.com/giulio-zhou/YAD2K.git
 	branch = master
+[submodule "projects/tensorboard-projector-viz"]
+	path = projects/tensorboard-projector-viz
+	url = https://github.com/giulio-zhou/tensorboard-projector-viz.git
+	branch = master

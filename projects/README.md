@@ -124,7 +124,7 @@ tensors and metadata prepared in the Tensorboard format.
 
 From the projects directory, run
 ```
-python viz/embedding.py output_dir/feature_vectors.npy LOG_DIR output_dir/labels.npy output_dir/data.npy
+python tensorboard-projector-viz/embedding.py output_dir/feature_vectors.npy LOG_DIR output_dir/labels.npy output_dir/data.npy
 ```
 
 Then run
